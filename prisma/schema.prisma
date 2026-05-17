@@ -60,6 +60,7 @@ model LineItem {
   allocations     FundingAllocation[]
   actuals         Actual[]
 
+  @@unique([qboAccountId])
   @@index([projectId])
   @@map("line_items")
 }
