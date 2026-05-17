@@ -40,6 +40,7 @@ model FundingSource {
   allocations    FundingAllocation[]
   actuals        Actual[]
 
+  @@index([projectId])
   @@map("funding_sources")
 }
 
@@ -59,6 +60,7 @@ model LineItem {
   allocations     FundingAllocation[]
   actuals         Actual[]
 
+  @@index([projectId])
   @@map("line_items")
 }
 
@@ -73,6 +75,7 @@ model FundingAllocation {
   fundingSource   FundingSource @relation(fields: [fundingSourceId], references: [id], onDelete: Cascade)
 
   @@unique([lineItemId, fundingSourceId])
+  @@index([fundingSourceId])
   @@map("funding_allocations")
 }
 
@@ -87,9 +90,11 @@ model Actual {
   qboTransactionType String
   createdAt          DateTime      @default(now())
   lineItem           LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
-  fundingSource      FundingSource? @relation(fields: [fundingSourceId], references: [id])
+  fundingSource      FundingSource? @relation(fields: [fundingSourceId], references: [id], onDelete: SetNull)
 
   @@unique([qboTransactionId, lineItemId])
+  @@index([lineItemId])
+  @@index([fundingSourceId])
   @@map("actuals")
 }
 
