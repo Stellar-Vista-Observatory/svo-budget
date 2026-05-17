@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectType {
+  claimed
+  catch_all
+}
+
+model Project {
+  id               String        @id @default(uuid())
+  name             String
+  description      String?
+  projectType      ProjectType
+  qboAccountId     String?
+  qboAccountName   String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  fundingSources   FundingSource[]
+  lineItems        LineItem[]
+
+  @@map("projects")
+}
+
+model FundingSource {
+  id             String       @id @default(uuid())
+  projectId      String
+  name           String
+  color          String
+  allocatedTotal Decimal      @db.Decimal(12, 2)
+  qboClassId     String
+  qboClassName   String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allocations    FundingAllocation[]
+  actuals        Actual[]
+
+  @@map("funding_sources")
+}
+
+model LineItem {
+  id              String       @id @default(uuid())
+  projectId       String
+  name            String
+  displayPath     String
+  category        String?
+  estimatedAmount Decimal      @db.Decimal(12, 2) @default(0)
+  qboAccountId    String
+  qboAccountName  String
+  isActive        Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  allocations     FundingAllocation[]
+  actuals         Actual[]
+
+  @@map("line_items")
+}
+
+model FundingAllocation {
+  id              String        @id @default(uuid())
+  lineItemId      String
+  fundingSourceId String
+  allocatedAmount Decimal       @db.Decimal(12, 2)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  lineItem        LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  fundingSource   FundingSource @relation(fields: [fundingSourceId], references: [id], onDelete: Cascade)
+
+  @@unique([lineItemId, fundingSourceId])
+  @@map("funding_allocations")
+}
+
+model Actual {
+  id                 String        @id @default(uuid())
+  lineItemId         String
+  fundingSourceId    String?
+  amount             Decimal       @db.Decimal(12, 2)
+  date               DateTime      @db.Date
+  vendor             String?
+  qboTransactionId   String
+  qboTransactionType String
+  createdAt          DateTime      @default(now())
+  lineItem           LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  fundingSource      FundingSource? @relation(fields: [fundingSourceId], references: [id])
+
+  @@unique([qboTransactionId, lineItemId])
+  @@map("actuals")
+}
+
+model QboConnection {
+  id              String    @id @default(uuid())
+  realmId         String    @unique
+  companyName     String
+  accessToken     String
+  refreshToken    String
+  tokenExpiresAt  DateTime
+  lastSyncedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("qbo_connections")
+}
