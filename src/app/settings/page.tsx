@@ -77,6 +77,7 @@ export default function SettingsPage() {
     await loadStatus()
     setAccounts([])
     setProjects([])
+    setSyncResult(null)
     setDisconnecting(false)
   }
 
