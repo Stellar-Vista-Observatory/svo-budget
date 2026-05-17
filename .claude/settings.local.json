@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/mkos/.claude/plugins/cache/claude-plugins-official/superpowers -name \"start-server.sh\" 2>/dev/null | head -5)",
+      "Read(//Users/mkos/.claude/plugins/cache/claude-plugins-official/superpowers/**)",
+      "Bash(/Users/mkos/.claude/plugins/cache/claude-plugins-official/superpowers/5.1.0/skills/brainstorming/scripts/start-server.sh --project-dir /Users/mkos/code/svo/svo-budget)",
+      "Bash(ls -t ~/.claude/projects/ | head -20)",
+      "Read(//Users/mkos/.claude/projects/**)"
+    ]
+  }
+}
