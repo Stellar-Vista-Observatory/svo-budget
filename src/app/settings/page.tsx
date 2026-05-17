@@ -157,13 +157,13 @@ export default function SettingsPage() {
               </div>
 
               {status.connection.lastSyncedAt && (
-                <p className="text-sm text-slate-500">
+                <p className="text-base text-slate-500">
                   Last synced:{' '}
                   {new Date(status.connection.lastSyncedAt).toLocaleString()}
                 </p>
               )}
               {!status.connection.lastSyncedAt && (
-                <p className="text-sm text-slate-500">Never synced — click Sync Now to import data.</p>
+                <p className="text-base text-slate-500">Never synced — click Sync Now to import data.</p>
               )}
 
               {syncResult && (
