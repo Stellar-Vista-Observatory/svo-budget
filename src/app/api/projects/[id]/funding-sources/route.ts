@@ -5,9 +5,8 @@ const COLOR_PALETTE = ['#3b82f6','#16a34a','#f59e0b','#ef4444','#8b5cf6','#ec489
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _ctx: { params: Promise<{ id: string }> }
 ) {
-  const { id: projectId } = await params
   try {
     const body = await request.json() as {
       name: string
@@ -24,12 +23,11 @@ export async function POST(
       return NextResponse.json({ error: 'allocatedTotal must be a non-negative number' }, { status: 400 })
     }
 
-    const existing = await prisma.fundingSource.count({ where: { projectId } })
+    const existing = await prisma.fundingSource.count()
     const color = body.color ?? COLOR_PALETTE[existing % COLOR_PALETTE.length]
 
     const source = await prisma.fundingSource.create({
       data: {
-        projectId,
         name: body.name,
         color,
         allocatedTotal: body.allocatedTotal,
