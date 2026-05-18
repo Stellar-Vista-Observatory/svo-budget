@@ -12,10 +12,6 @@ export async function GET(
     where: { id },
     include: {
       fundingSources: {
-        include: {
-          actuals: { select: { amount: true, fundingSourceId: true } },
-          allocations: { select: { allocatedAmount: true, lineItemId: true } },
-        },
         orderBy: { createdAt: 'asc' },
       },
       lineItems: {
