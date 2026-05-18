@@ -5,8 +5,7 @@ import { FundingSourceCard } from '@/components/project/FundingSourceCard'
 import { LineItemsTable } from '@/components/project/LineItemsTable'
 import { SegmentedBar } from '@/components/SegmentedBar'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { use } from 'react'
+import { useCallback, useEffect, useState, use } from 'react'
 
 interface AllocationData {
   id: string
@@ -58,13 +57,15 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  async function loadProject() {
+  const loadProject = useCallback(async () => {
     const res = await fetch(`/api/projects/${id}`)
     if (!res.ok) { setError('Project not found'); return }
     setProject(await res.json())
-  }
+  }, [id])
 
-  useEffect(() => { loadProject() }, [id])
+  useEffect(() => {
+    loadProject()
+  }, [loadProject])
 
   if (error) return (
     <AppShell>
