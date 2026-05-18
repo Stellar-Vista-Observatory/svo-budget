@@ -175,7 +175,13 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">${li.estimatedAmount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right tabular-nums" onClick={(e) => e.stopPropagation()}>
+                    <EditableCell
+                      value={String(li.estimatedAmount)}
+                      type="number"
+                      onSave={(v) => patchLineItem(li.id, { estimatedAmount: parseFloat(v) })}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">${li.spent.toLocaleString()}</td>
                   <td className={`px-4 py-3 text-right tabular-nums ${li.remaining < 0 ? 'text-red-600' : 'text-green-700'}`}>
                     ${li.remaining.toLocaleString()}
@@ -184,18 +190,6 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
 
                 {isExpanded && (
                   <>
-                    <tr className="bg-blue-50/20 border-b border-slate-100">
-                      <td className="pl-10 pr-4 py-2 text-sm text-slate-400 italic">from QBO</td>
-                      <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                        <EditableCell
-                          value={String(li.estimatedAmount)}
-                          type="number"
-                          onSave={(v) => patchLineItem(li.id, { estimatedAmount: parseFloat(v) })}
-                        />
-                      </td>
-                      <td colSpan={2} />
-                    </tr>
-
                     {li.allocations.map((alloc) => (
                       <AllocationRow
                         key={alloc.id}
