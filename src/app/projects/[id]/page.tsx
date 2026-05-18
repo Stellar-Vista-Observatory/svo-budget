@@ -26,7 +26,6 @@ interface LineItemData {
   id: string
   name: string
   displayPath: string
-  category: string | null
   estimatedAmount: number
   isActive: boolean
   spent: number

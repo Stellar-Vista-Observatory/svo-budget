@@ -22,7 +22,6 @@ interface LineItemData {
   id: string
   name: string
   displayPath: string
-  category: string | null
   estimatedAmount: number
   spent: number
   remaining: number
@@ -149,7 +148,6 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="text-left font-medium text-slate-600 px-4 py-3">Line Item</th>
-            <th className="text-left font-medium text-slate-600 px-4 py-3">Category</th>
             <th className="text-right font-medium text-slate-600 px-4 py-3">Estimated</th>
             <th className="text-right font-medium text-slate-600 px-4 py-3">Spent</th>
             <th className="text-right font-medium text-slate-600 px-4 py-3">Remaining</th>
@@ -177,7 +175,6 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{li.category ?? '—'}</td>
                   <td className="px-4 py-3 text-right tabular-nums">${li.estimatedAmount.toLocaleString()}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-blue-700">${li.spent.toLocaleString()}</td>
                   <td className={`px-4 py-3 text-right tabular-nums ${li.remaining < 0 ? 'text-red-600' : 'text-green-700'}`}>
@@ -188,18 +185,7 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
                 {isExpanded && (
                   <>
                     <tr className="bg-blue-50/20 border-b border-slate-100">
-                      <td className="pl-10 pr-4 py-2" onClick={(e) => e.stopPropagation()}>
-                        <EditableCell
-                          value={li.name}
-                          onSave={(v) => patchLineItem(li.id, { name: v })}
-                        />
-                      </td>
-                      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
-                        <EditableCell
-                          value={li.category ?? ''}
-                          onSave={(v) => patchLineItem(li.id, { category: v || null })}
-                        />
-                      </td>
+                      <td className="pl-10 pr-4 py-2 text-sm text-slate-400 italic">from QBO</td>
                       <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                         <EditableCell
                           value={String(li.estimatedAmount)}

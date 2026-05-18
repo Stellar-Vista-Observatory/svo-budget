@@ -94,7 +94,6 @@ export async function GET(
       id: li.id,
       name: li.name,
       displayPath: li.displayPath,
-      category: li.category,
       estimatedAmount: li.estimatedAmount.toNumber(),
       qboAccountId: li.qboAccountId,
       isActive: li.isActive,

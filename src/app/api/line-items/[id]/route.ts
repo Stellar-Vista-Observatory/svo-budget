@@ -13,11 +13,9 @@ export async function PATCH(
     const updated = await prisma.lineItem.update({
       where: { id },
       data: {
-        ...(patch.name !== undefined && { name: patch.name }),
-        ...(patch.category !== undefined && { category: patch.category }),
         ...(patch.estimatedAmount !== undefined && { estimatedAmount: patch.estimatedAmount }),
       },
-      select: { id: true, name: true, category: true, estimatedAmount: true },
+      select: { id: true, name: true, estimatedAmount: true },
     })
     return NextResponse.json(updated)
   } catch (err) {
