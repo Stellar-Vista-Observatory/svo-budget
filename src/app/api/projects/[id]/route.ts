@@ -18,9 +18,13 @@ export async function GET(
             select: {
               id: true,
               amount: true,
+              date: true,
+              vendor: true,
+              qboTransactionType: true,
               fundingSourceId: true,
               fundingSource: { select: { name: true, color: true } },
             },
+            orderBy: { date: 'desc' },
           },
           allocations: {
             include: {
@@ -108,7 +112,13 @@ export async function GET(
         allocatedAmount: a.allocatedAmount.toNumber(),
       })),
       actualsBySource: Object.values(
-        li.actuals.reduce<Record<string, { fundingSourceId: string | null; name: string; color: string; total: number }>>(
+        li.actuals.reduce<Record<string, {
+          fundingSourceId: string | null
+          name: string
+          color: string
+          total: number
+          transactions: { id: string; date: string; vendor: string | null; amount: number; type: string }[]
+        }>>(
           (acc, actual) => {
             const key = actual.fundingSourceId ?? '__untagged__'
             if (!acc[key]) {
@@ -117,9 +127,17 @@ export async function GET(
                 name: actual.fundingSource?.name ?? 'Untagged',
                 color: actual.fundingSource?.color ?? '#94a3b8',
                 total: 0,
+                transactions: [],
               }
             }
             acc[key].total += actual.amount.toNumber()
+            acc[key].transactions.push({
+              id: actual.id,
+              date: actual.date.toISOString().slice(0, 10),
+              vendor: actual.vendor,
+              amount: actual.amount.toNumber(),
+              type: actual.qboTransactionType,
+            })
             return acc
           },
           {}

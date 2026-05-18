@@ -15,11 +15,20 @@ interface AllocationData {
   allocatedAmount: number
 }
 
+interface Transaction {
+  id: string
+  date: string
+  vendor: string | null
+  amount: number
+  type: string
+}
+
 interface ActualsBySource {
   fundingSourceId: string | null
   name: string
   color: string
   total: number
+  transactions: Transaction[]
 }
 
 interface LineItemData {

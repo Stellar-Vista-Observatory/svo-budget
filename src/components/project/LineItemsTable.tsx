@@ -11,11 +11,20 @@ interface AllocationData {
   allocatedAmount: number
 }
 
+interface Transaction {
+  id: string
+  date: string
+  vendor: string | null
+  amount: number
+  type: string
+}
+
 interface ActualsBySource {
   fundingSourceId: string | null
   name: string
   color: string
   total: number
+  transactions: Transaction[]
 }
 
 interface LineItemData {
@@ -95,6 +104,15 @@ function EditableCell({
 
 export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate }: LineItemsTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [expandedActuals, setExpandedActuals] = useState<Set<string>>(new Set())
+
+  function toggleActuals(key: string) {
+    setExpandedActuals((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
   const [addingSourceFor, setAddingSourceFor] = useState<string | null>(null)
   const [selectedFsId, setSelectedFsId] = useState('')
   const [newAllocationAmount, setNewAllocationAmount] = useState('')
@@ -209,22 +227,43 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
                             Actual Spending
                           </td>
                         </tr>
-                        {li.actualsBySource.map((a) => (
-                          <tr key={a.fundingSourceId ?? '__untagged__'} className="bg-slate-50/50 border-b border-slate-100">
-                            <td className="pl-10 pr-4 py-2" colSpan={2}>
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                  style={{ backgroundColor: a.color }}
-                                />
-                                <span className="text-sm text-slate-600">{a.name}</span>
-                              </div>
-                            </td>
-                            <td className="px-4 py-2 text-right text-sm tabular-nums text-slate-700" colSpan={3}>
-                              ${a.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
+                        {li.actualsBySource.map((a) => {
+                          const key = `${li.id}-${a.fundingSourceId ?? '__untagged__'}`
+                          const isOpen = expandedActuals.has(key)
+                          return (
+                            <React.Fragment key={key}>
+                              <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <td className="pl-10 pr-4 py-2" colSpan={2}>
+                                  <button
+                                    className="flex items-center gap-2 text-left hover:opacity-75"
+                                    onClick={(e) => { e.stopPropagation(); toggleActuals(key) }}
+                                  >
+                                    <span className="text-slate-400 text-xs w-3">{isOpen ? '▼' : '▶'}</span>
+                                    <span
+                                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                      style={{ backgroundColor: a.color }}
+                                    />
+                                    <span className="text-sm text-slate-600">{a.name}</span>
+                                  </button>
+                                </td>
+                                <td className="px-4 py-2 text-right text-sm tabular-nums text-slate-700" colSpan={3}>
+                                  ${a.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                              {isOpen && a.transactions.map((txn) => (
+                                <tr key={txn.id} className="bg-white border-b border-slate-100">
+                                  <td className="pl-16 pr-4 py-1.5 text-sm text-slate-500" colSpan={2}>
+                                    <span className="tabular-nums text-slate-400 mr-3">{txn.date}</span>
+                                    {txn.vendor ?? txn.type}
+                                  </td>
+                                  <td className="px-4 py-1.5 text-right text-sm tabular-nums text-slate-600" colSpan={3}>
+                                    ${txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          )
+                        })}
                       </>
                     )}
 
