@@ -29,11 +29,22 @@ export default function SettingsPage() {
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
   const [claimingAccount, setClaimingAccount] = useState<string | null>(null)
+  const [creatingProject, setCreatingProject] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [projectCreateError, setProjectCreateError] = useState<string | null>(null)
 
   const loadStatus = useCallback(async () => {
     const res = await fetch('/api/qbo/status')
     const data = await res.json()
     setStatus(data)
+  }, [])
+
+  const loadProjects = useCallback(async () => {
+    const res = await fetch('/api/projects')
+    if (res.ok) {
+      const data = await res.json()
+      setProjects(data.projects ?? [])
+    }
   }, [])
 
   const loadAccountsAndProjects = useCallback(async () => {
@@ -53,6 +64,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     loadStatus()
+    loadProjects()
     const params = new URLSearchParams(window.location.search)
     if (params.get('connected') === 'true') {
       setSyncResult('Connected to QuickBooks successfully.')
@@ -62,13 +74,32 @@ export default function SettingsPage() {
       setSyncResult('QuickBooks connection failed. Please try again.')
       window.history.replaceState({}, '', '/settings')
     }
-  }, [loadStatus])
+  }, [loadStatus, loadProjects])
 
   useEffect(() => {
     if (status?.connected) {
       loadAccountsAndProjects()
     }
   }, [status?.connected, loadAccountsAndProjects])
+
+  async function handleCreateProject() {
+    if (!newProjectName.trim()) return
+    setCreatingProject(true)
+    setProjectCreateError(null)
+    const res = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newProjectName.trim() }),
+    })
+    if (res.ok) {
+      setNewProjectName('')
+      await loadAccountsAndProjects()
+    } else {
+      const data = await res.json()
+      setProjectCreateError(data.error ?? 'Failed to create project')
+    }
+    setCreatingProject(false)
+  }
 
   async function handleDisconnect() {
     if (!confirm('Disconnect from QuickBooks? Existing synced data will be kept.')) return
@@ -188,6 +219,49 @@ export default function SettingsPage() {
                 <p className="text-base p-3 rounded-md bg-red-50 text-red-700">{syncResult}</p>
               )}
             </div>
+          )}
+        </section>
+
+        {/* Projects Section */}
+        <section className="bg-white border border-slate-200 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Projects</h2>
+          <p className="text-base text-slate-600 mb-4">
+            Projects organize your budget. Each project can claim a QBO account to track its spending.
+          </p>
+
+          {/* Existing projects list */}
+          {projects.filter(p => p.projectType === 'claimed').length > 0 && (
+            <ul className="mb-4 space-y-1">
+              {projects.filter(p => p.projectType === 'claimed').map(p => (
+                <li key={p.id} className="text-base text-slate-900 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                  {p.name}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Create form */}
+          <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              placeholder="Project name"
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject() }}
+              disabled={creatingProject}
+              className="flex-1 max-w-xs border border-slate-300 rounded-md px-3 py-1.5 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            />
+            <button
+              onClick={handleCreateProject}
+              disabled={creatingProject || !newProjectName.trim()}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-base font-medium rounded-md transition-colors"
+            >
+              {creatingProject ? 'Creating…' : 'Create'}
+            </button>
+          </div>
+          {projectCreateError && (
+            <p className="text-base text-red-600 mt-2">{projectCreateError}</p>
           )}
         </section>
 
