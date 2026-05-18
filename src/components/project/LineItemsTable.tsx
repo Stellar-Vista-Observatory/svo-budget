@@ -52,7 +52,7 @@ function EditableCell({
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
-    if (draft === value) { setEditing(false); return }
+    if (saving || draft === value) { setEditing(false); return }
     setSaving(true)
     await onSave(draft)
     setEditing(false)

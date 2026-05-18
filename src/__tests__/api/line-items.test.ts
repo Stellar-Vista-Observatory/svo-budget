@@ -20,4 +20,8 @@ describe('validateLineItemPatch', () => {
   it('rejects empty name', () => {
     expect(() => validateLineItemPatch({ name: '' })).toThrow('name cannot be empty')
   })
+
+  it('rejects non-numeric estimatedAmount', () => {
+    expect(() => validateLineItemPatch({ estimatedAmount: NaN })).toThrow('estimatedAmount must be >= 0')
+  })
 })

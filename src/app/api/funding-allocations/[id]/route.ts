@@ -26,6 +26,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
-  await prisma.fundingAllocation.delete({ where: { id } })
-  return NextResponse.json({ ok: true })
+  try {
+    await prisma.fundingAllocation.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Delete failed'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }
