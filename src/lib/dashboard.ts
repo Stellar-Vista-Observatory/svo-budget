@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, ProjectType } from '@prisma/client'
 import { projectSpent, projectFundingGap, fundingSourceSpent } from './computed'
 
 type Actual = { amount: Prisma.Decimal; fundingSourceId: string | null }
@@ -7,7 +7,7 @@ type LineItem = { id: string; estimatedAmount: Prisma.Decimal; actuals: Actual[]
 type Project = {
   id: string
   name: string
-  projectType: string
+  projectType: ProjectType
   fundingSources: FundingSource[]
   lineItems: LineItem[]
 }
