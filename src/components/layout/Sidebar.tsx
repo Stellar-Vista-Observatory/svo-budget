@@ -2,16 +2,35 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState, useCallback } from 'react'
 
-const navItems = [
+const baseNavItems = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/reports', label: 'Reports' },
-  { href: '/admin/users', label: 'Users' },
   { href: '/settings', label: 'Settings' },
+]
+
+const adminNavItems = [
+  { href: '/admin/users', label: 'Users' },
 ]
 
 export function Sidebar() {
   const pathname = usePathname()
+  const [role, setRole] = useState<'admin' | 'viewer' | null>('viewer')
+
+  const loadRole = useCallback(async () => {
+    const res = await fetch('/api/me')
+    if (res.ok) {
+      const data = await res.json()
+      setRole(data.role)
+    }
+  }, [])
+
+  useEffect(() => { loadRole() }, [loadRole])
+
+  const navItems = role === 'admin'
+    ? [...baseNavItems.slice(0, 2), ...adminNavItems, baseNavItems[2]]
+    : baseNavItems
 
   return (
     <aside className="w-56 bg-white border-r border-slate-200 flex flex-col min-h-screen">
