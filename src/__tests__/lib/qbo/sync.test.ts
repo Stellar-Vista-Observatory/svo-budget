@@ -11,7 +11,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     project: { findMany: jest.fn() },
     lineItem: { findMany: jest.fn(), upsert: jest.fn() },
-    fundingSource: { findMany: jest.fn(), update: jest.fn() },
+    fundingSource: { findMany: jest.fn(), update: jest.fn(), upsert: jest.fn() },
     actual: { upsert: jest.fn() },
     qboConnection: { update: jest.fn() },
   },
@@ -40,6 +40,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   mockGetValidConnection.mockResolvedValue(fakeConn)
   ;(mockPrisma.qboConnection.update as jest.Mock).mockResolvedValue(fakeConn)
+  ;(mockPrisma.fundingSource.upsert as jest.Mock).mockResolvedValue({})
 })
 
 describe('syncAll — line items', () => {
@@ -131,10 +132,10 @@ describe('syncAll — transactions', () => {
 
     ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
     ;(mockPrisma.lineItem.findMany as jest.Mock).mockResolvedValue([
-      { id: 'li-1', qboAccountId: 'acc-1', projectId: 'proj-1' },
+      { id: 'li-1', qboAccountId: 'acc-1' },
     ])
     ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([
-      { id: 'fs-1', qboClassId: 'class-1', projectId: 'proj-1' },
+      { id: 'fs-1', qboClassId: 'class-1' },
     ])
     ;(mockPrisma.actual.upsert as jest.Mock).mockResolvedValue({})
 
@@ -148,7 +149,7 @@ describe('syncAll — transactions', () => {
     expect(upsertCall.create.qboTransactionId).toBe('Purchase-txn-1-1')
   })
 
-  it('sets fundingSourceId to null when class belongs to a different project', async () => {
+  it('sets fundingSourceId when class matches, regardless of project', async () => {
     mockQboQuery
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
@@ -173,16 +174,16 @@ describe('syncAll — transactions', () => {
 
     ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
     ;(mockPrisma.lineItem.findMany as jest.Mock).mockResolvedValue([
-      { id: 'li-1', qboAccountId: 'acc-1', projectId: 'proj-1' },
+      { id: 'li-1', qboAccountId: 'acc-1' },
     ])
     ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([
-      { id: 'fs-1', qboClassId: 'class-1', projectId: 'proj-DIFFERENT' },
+      { id: 'fs-1', qboClassId: 'class-1' },
     ])
     ;(mockPrisma.actual.upsert as jest.Mock).mockResolvedValue({})
 
     await syncAll()
 
     const upsertCall = (mockPrisma.actual.upsert as jest.Mock).mock.calls[0][0]
-    expect(upsertCall.create.fundingSourceId).toBeNull()
+    expect(upsertCall.create.fundingSourceId).toBe('fs-1')
   })
 })
