@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
+import type { Role } from '@prisma/client'
 
 export async function getSession() {
   const supabase = await createClient()
@@ -8,13 +9,13 @@ export async function getSession() {
   return user
 }
 
-export async function getRole(userId: string): Promise<'admin' | 'viewer'> {
+export async function getRole(userId: string): Promise<Role> {
   const userRole = await prisma.userRole.findUnique({ where: { userId } })
   return userRole?.role ?? 'viewer'
 }
 
 export async function requireAuth(): Promise<
-  { user: NonNullable<Awaited<ReturnType<typeof getSession>>>; role: 'admin' | 'viewer' } |
+  { user: NonNullable<Awaited<ReturnType<typeof getSession>>>; role: Role } |
   { error: NextResponse }
 > {
   const user = await getSession()

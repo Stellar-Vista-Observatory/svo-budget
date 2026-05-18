@@ -1,7 +1,11 @@
 import type { Prisma } from '@prisma/client'
 
-export function lineItemSpent(actuals: { amount: Prisma.Decimal }[]): number {
+function sumActuals(actuals: { amount: Prisma.Decimal }[]): number {
   return actuals.reduce((sum, a) => sum + a.amount.toNumber(), 0)
+}
+
+export function lineItemSpent(actuals: { amount: Prisma.Decimal }[]): number {
+  return sumActuals(actuals)
 }
 
 export function lineItemRemaining(estimatedAmount: Prisma.Decimal, spent: number): number {
@@ -22,7 +26,7 @@ export function fundingSourceRemaining(allocatedTotal: Prisma.Decimal, spent: nu
 }
 
 export function projectSpent(actuals: { amount: Prisma.Decimal }[]): number {
-  return actuals.reduce((sum, a) => sum + a.amount.toNumber(), 0)
+  return sumActuals(actuals)
 }
 
 export function projectFundingGap(estimatedCosts: number, securedFunding: number): number {
