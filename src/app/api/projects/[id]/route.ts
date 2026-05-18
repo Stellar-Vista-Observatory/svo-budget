@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { lineItemSpent, lineItemRemaining, fundingSourceSpent, fundingSourceRemaining, projectSpent, projectFundingGap } from '@/lib/computed'
+import { lineItemSpent, lineItemRemaining, fundingSourceSpent, projectSpent, projectFundingGap } from '@/lib/computed'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -11,16 +11,13 @@ export async function GET(
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
-      fundingSources: {
-        orderBy: { createdAt: 'asc' },
-      },
       lineItems: {
         where: { isActive: true },
         include: {
           actuals: { select: { amount: true, fundingSourceId: true } },
           allocations: {
             include: {
-              fundingSource: { select: { id: true, name: true, color: true } },
+              fundingSource: { select: { id: true, name: true, color: true, allocatedTotal: true, qboClassId: true, qboClassName: true } },
             },
           },
         },
@@ -34,19 +31,48 @@ export async function GET(
   const allActuals = project.lineItems.flatMap((li) => li.actuals)
   const totalSpent = projectSpent(allActuals)
   const totalEstimated = project.lineItems.reduce((s, li) => s + li.estimatedAmount.toNumber(), 0)
-  const totalSecured = project.fundingSources.reduce((s, fs) => s + fs.allocatedTotal.toNumber(), 0)
 
-  const fundingSources = project.fundingSources.map((fs) => {
+  // Secured = sum of allocations for this project's line items
+  const totalSecured = project.lineItems
+    .flatMap((li) => li.allocations)
+    .reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
+
+  // Deduplicate funding sources; compute per-project allocated + spent
+  const fsMap = new Map<string, {
+    id: string; name: string; color: string
+    allocatedToProject: number
+    qboClassId: string; qboClassName: string
+  }>()
+  for (const li of project.lineItems) {
+    for (const alloc of li.allocations) {
+      const fs = alloc.fundingSource
+      const entry = fsMap.get(fs.id)
+      if (entry) {
+        entry.allocatedToProject += alloc.allocatedAmount.toNumber()
+      } else {
+        fsMap.set(fs.id, {
+          id: fs.id,
+          name: fs.name,
+          color: fs.color,
+          allocatedToProject: alloc.allocatedAmount.toNumber(),
+          qboClassId: fs.qboClassId,
+          qboClassName: fs.qboClassName,
+        })
+      }
+    }
+  }
+
+  const fundingSources = Array.from(fsMap.values()).map((fs) => {
     const spent = fundingSourceSpent(fs.id, allActuals)
     return {
       id: fs.id,
       name: fs.name,
       color: fs.color,
-      allocatedTotal: fs.allocatedTotal.toNumber(),
+      allocatedTotal: fs.allocatedToProject,
       qboClassId: fs.qboClassId,
       qboClassName: fs.qboClassName,
       spent,
-      remaining: fundingSourceRemaining(fs.allocatedTotal, spent),
+      remaining: fs.allocatedToProject - spent,
     }
   })
 
