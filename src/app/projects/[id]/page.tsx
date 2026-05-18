@@ -71,12 +71,18 @@ interface ProjectDetail {
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [project, setProject] = useState<ProjectDetail | null>(null)
+  const [allFundingSources, setAllFundingSources] = useState<FundingSourceData[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const loadProject = useCallback(async () => {
-    const res = await fetch(`/api/projects/${id}`)
-    if (!res.ok) { setError('Project not found'); return }
-    setProject(await res.json())
+    const [projRes, fsRes] = await Promise.all([
+      fetch(`/api/projects/${id}`),
+      fetch('/api/funding-sources'),
+    ])
+    if (!projRes.ok) { setError('Project not found'); return }
+    const [proj, fs] = await Promise.all([projRes.json(), fsRes.json()])
+    setProject(proj)
+    setAllFundingSources(fs)
   }, [id])
 
   useEffect(() => {
@@ -147,7 +153,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           lineItems={project.lineItems}
           isCatchAll={project.projectType === 'catch_all'}
           projectId={id}
-          fundingSources={project.fundingSources}
+          fundingSources={allFundingSources}
           onUpdate={loadProject}
         />
       </section>
