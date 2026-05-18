@@ -11,6 +11,13 @@ interface AllocationData {
   allocatedAmount: number
 }
 
+interface ActualsBySource {
+  fundingSourceId: string | null
+  name: string
+  color: string
+  total: number
+}
+
 interface LineItemData {
   id: string
   name: string
@@ -21,6 +28,7 @@ interface LineItemData {
   remaining: number
   allocationPct: number
   allocations: AllocationData[]
+  actualsBySource: ActualsBySource[]
 }
 
 interface FundingSourceOption {
@@ -213,6 +221,32 @@ export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate
                         onDelete={() => deleteAllocation(alloc.id)}
                       />
                     ))}
+
+                    {li.actualsBySource.length > 0 && (
+                      <>
+                        <tr className="bg-slate-50/50">
+                          <td className="pl-10 pr-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wide" colSpan={5}>
+                            Actual Spending
+                          </td>
+                        </tr>
+                        {li.actualsBySource.map((a) => (
+                          <tr key={a.fundingSourceId ?? '__untagged__'} className="bg-slate-50/50 border-b border-slate-100">
+                            <td className="pl-10 pr-4 py-2" colSpan={2}>
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: a.color }}
+                                />
+                                <span className="text-sm text-slate-600">{a.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm tabular-nums text-slate-700" colSpan={3}>
+                              ${a.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </>
+                    )}
 
                     {addingSourceFor === li.id ? (
                       <tr className="bg-slate-50 border-b border-slate-100">

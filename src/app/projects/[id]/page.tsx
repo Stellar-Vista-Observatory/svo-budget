@@ -15,6 +15,13 @@ interface AllocationData {
   allocatedAmount: number
 }
 
+interface ActualsBySource {
+  fundingSourceId: string | null
+  name: string
+  color: string
+  total: number
+}
+
 interface LineItemData {
   id: string
   name: string
@@ -26,6 +33,7 @@ interface LineItemData {
   remaining: number
   allocationPct: number
   allocations: AllocationData[]
+  actualsBySource: ActualsBySource[]
 }
 
 interface FundingSourceData {

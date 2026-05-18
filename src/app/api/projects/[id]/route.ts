@@ -14,7 +14,14 @@ export async function GET(
       lineItems: {
         where: { isActive: true },
         include: {
-          actuals: { select: { amount: true, fundingSourceId: true } },
+          actuals: {
+            select: {
+              id: true,
+              amount: true,
+              fundingSourceId: true,
+              fundingSource: { select: { name: true, color: true } },
+            },
+          },
           allocations: {
             include: {
               fundingSource: { select: { id: true, name: true, color: true, allocatedTotal: true, qboClassId: true, qboClassName: true } },
@@ -101,6 +108,24 @@ export async function GET(
         fundingSourceColor: a.fundingSource.color,
         allocatedAmount: a.allocatedAmount.toNumber(),
       })),
+      actualsBySource: Object.values(
+        li.actuals.reduce<Record<string, { fundingSourceId: string | null; name: string; color: string; total: number }>>(
+          (acc, actual) => {
+            const key = actual.fundingSourceId ?? '__untagged__'
+            if (!acc[key]) {
+              acc[key] = {
+                fundingSourceId: actual.fundingSourceId,
+                name: actual.fundingSource?.name ?? 'Untagged',
+                color: actual.fundingSource?.color ?? '#94a3b8',
+                total: 0,
+              }
+            }
+            acc[key].total += actual.amount.toNumber()
+            return acc
+          },
+          {}
+        )
+      ),
     }
   })
 
