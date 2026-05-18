@@ -55,7 +55,7 @@ export function Sidebar({ onClose }: SidebarProps) {
           <Link
             key={item.href}
             href={item.href}
-            onClick={onClose}
+            onClick={() => onClose?.()}
             className={`flex items-center px-3 py-2.5 rounded-md text-base font-medium transition-colors ${
               pathname.startsWith(item.href)
                 ? 'bg-blue-50 text-blue-700'
