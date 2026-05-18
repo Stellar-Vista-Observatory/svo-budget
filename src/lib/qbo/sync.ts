@@ -65,7 +65,7 @@ export async function syncAll(): Promise<{ lineItemsUpserted: number; actualsUps
   ])
 
   const lineItemsUpserted = await syncLineItems(accounts)
-  await syncClassNames(classes)
+  await syncFundingSources(classes)
   const actualsUpserted = await syncTransactions(conn, accounts, classes)
 
   await prisma.qboConnection.update({
@@ -144,17 +144,36 @@ async function syncLineItems(accounts: QboAccount[]): Promise<number> {
   return upsertCount
 }
 
-async function syncClassNames(classes: QboClass[]): Promise<void> {
-  const classMap = new Map(classes.map((c) => [c.Id, c]))
-  const fundingSources = await prisma.fundingSource.findMany()
+const COLOR_PALETTE = ['#3b82f6','#16a34a','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316']
 
-  for (const source of fundingSources) {
-    const qboClass = classMap.get(source.qboClassId)
-    if (qboClass && qboClass.Name !== source.qboClassName) {
-      await prisma.fundingSource.update({
-        where: { id: source.id },
-        data: { qboClassName: qboClass.Name },
+async function syncFundingSources(classes: QboClass[]): Promise<void> {
+  const existing = await prisma.fundingSource.findMany({
+    select: { id: true, qboClassId: true, qboClassName: true },
+  })
+  const existingByClassId = new Map(existing.map((fs) => [fs.qboClassId, fs]))
+  let colorIdx = existing.length
+
+  for (const cls of classes) {
+    if (!cls.Active) continue
+    const found = existingByClassId.get(cls.Id)
+    if (found) {
+      if (found.qboClassName !== cls.Name) {
+        await prisma.fundingSource.update({
+          where: { id: found.id },
+          data: { qboClassName: cls.Name, name: cls.Name },
+        })
+      }
+    } else {
+      await prisma.fundingSource.create({
+        data: {
+          name: cls.Name,
+          color: COLOR_PALETTE[colorIdx % COLOR_PALETTE.length],
+          allocatedTotal: 0,
+          qboClassId: cls.Id,
+          qboClassName: cls.Name,
+        },
       })
+      colorIdx++
     }
   }
 }
@@ -182,10 +201,10 @@ async function syncTransactions(
   ])
 
   const lineItems = await prisma.lineItem.findMany({
-    select: { id: true, qboAccountId: true, projectId: true },
+    select: { id: true, qboAccountId: true },
   })
   const fundingSources = await prisma.fundingSource.findMany({
-    select: { id: true, qboClassId: true, projectId: true },
+    select: { id: true, qboClassId: true },
   })
 
   const lineItemByAccount = new Map(lineItems.map((li) => [li.qboAccountId, li]))
@@ -209,8 +228,7 @@ async function syncTransactions(
 
       const classId = detail.ClassRef?.value
       const fundingSource = classId ? fundingSourceByClass.get(classId) : undefined
-      const matchedFsId =
-        fundingSource?.projectId === lineItem.projectId ? fundingSource.id : null
+      const matchedFsId = fundingSource ? fundingSource.id : null
 
       const qboTransactionId = `${txnType}-${txnId}-${line.LineNum}`
 
