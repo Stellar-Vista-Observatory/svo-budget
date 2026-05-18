@@ -16,13 +16,17 @@ const adminNavItems = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const [role, setRole] = useState<'admin' | 'viewer' | null>('viewer')
+  const [role, setRole] = useState<'admin' | 'viewer' | null>(null)
 
   const loadRole = useCallback(async () => {
-    const res = await fetch('/api/me')
-    if (res.ok) {
-      const data = await res.json()
-      setRole(data.role)
+    try {
+      const res = await fetch('/api/me')
+      if (res.ok) {
+        const data = await res.json()
+        setRole(data.role)
+      }
+    } catch {
+      // degrade gracefully — base nav items shown
     }
   }, [])
 
