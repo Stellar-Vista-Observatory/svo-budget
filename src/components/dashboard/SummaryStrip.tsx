@@ -18,7 +18,7 @@ function StatBox({ label, value, valueColor }: { label: string; value: number; v
 
 export function SummaryStrip({ estimatedCosts, securedFunding, spentToDate, remaining }: SummaryStripProps) {
   return (
-    <div className="flex gap-4 flex-wrap sm:flex-nowrap">
+    <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-nowrap sm:gap-4">
       <StatBox label="Estimated Costs" value={estimatedCosts} />
       <StatBox label="Secured Funding" value={securedFunding} valueColor="text-green-700" />
       <StatBox label="Spent to Date" value={spentToDate} valueColor="text-blue-700" />
