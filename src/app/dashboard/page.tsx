@@ -16,13 +16,11 @@ interface FundingSourceSummary {
 interface ProjectCardData {
   id: string
   name: string
-  projectType: string
   estimated: number
   secured: number
   spent: number
   fundingGap: number
   lineItemCount: number
-  fundingSourceCount: number
   fundingSources: FundingSourceSummary[]
 }
 

@@ -39,13 +39,11 @@ export function buildDashboardData(projects: Project[]) {
     return {
       id: p.id,
       name: p.name,
-      projectType: p.projectType,
       estimated,
       secured,
       spent,
       fundingGap,
       lineItemCount: p.lineItems.length,
-      fundingSourceCount: p.fundingSources.length,
       fundingSources: fundingSourceSummaries,
     }
   })
