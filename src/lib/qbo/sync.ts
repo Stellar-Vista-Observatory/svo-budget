@@ -148,33 +148,26 @@ const COLOR_PALETTE = ['#3b82f6','#16a34a','#f59e0b','#ef4444','#8b5cf6','#ec489
 
 async function syncFundingSources(classes: QboClass[]): Promise<void> {
   const existing = await prisma.fundingSource.findMany({
-    select: { id: true, qboClassId: true, qboClassName: true },
+    select: { qboClassId: true },
   })
-  const existingByClassId = new Map(existing.map((fs) => [fs.qboClassId, fs]))
-  let colorIdx = existing.length
+  const existingClassIds = new Set(existing.map((fs) => fs.qboClassId))
+  let newColorIdx = existing.length
 
   for (const cls of classes) {
     if (!cls.Active) continue
-    const found = existingByClassId.get(cls.Id)
-    if (found) {
-      if (found.qboClassName !== cls.Name) {
-        await prisma.fundingSource.update({
-          where: { id: found.id },
-          data: { qboClassName: cls.Name, name: cls.Name },
-        })
-      }
-    } else {
-      await prisma.fundingSource.create({
-        data: {
-          name: cls.Name,
-          color: COLOR_PALETTE[colorIdx % COLOR_PALETTE.length],
-          allocatedTotal: 0,
-          qboClassId: cls.Id,
-          qboClassName: cls.Name,
-        },
-      })
-      colorIdx++
-    }
+    const isNew = !existingClassIds.has(cls.Id)
+    await prisma.fundingSource.upsert({
+      where: { qboClassId: cls.Id },
+      update: { qboClassName: cls.Name, name: cls.Name },
+      create: {
+        name: cls.Name,
+        color: COLOR_PALETTE[newColorIdx % COLOR_PALETTE.length],
+        allocatedTotal: 0,
+        qboClassId: cls.Id,
+        qboClassName: cls.Name,
+      },
+    })
+    if (isNew) newColorIdx++
   }
 }
 
