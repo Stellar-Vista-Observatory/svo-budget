@@ -9,15 +9,18 @@ export async function GET() {
 
   const projects = await prisma.project.findMany({
     include: {
-      lineItems: {
-        where: { isActive: true },
+      categories: {
         include: {
-          actuals: { select: { amount: true, fundingSourceId: true } },
-          allocations: {
+          budgetEntries: {
             include: {
-              fundingSource: { select: { id: true, name: true, color: true } },
+              allocations: {
+                include: {
+                  fundingSource: { select: { id: true, name: true, color: true } },
+                },
+              },
             },
           },
+          actuals: { select: { amount: true, fundingSourceId: true } },
         },
       },
     },

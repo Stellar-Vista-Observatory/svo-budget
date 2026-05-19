@@ -6,12 +6,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: lineItemId } = await params
+  const { id: budgetEntryId } = await params
   try {
     const body = await request.json() as { fundingSourceId: string; allocatedAmount: number }
     const amount = validateAllocationAmount(body.allocatedAmount)
     const allocation = await prisma.fundingAllocation.create({
-      data: { lineItemId, fundingSourceId: body.fundingSourceId, allocatedAmount: amount },
+      data: { budgetEntryId, fundingSourceId: body.fundingSourceId, allocatedAmount: amount },
     })
     return NextResponse.json(allocation, { status: 201 })
   } catch (err) {

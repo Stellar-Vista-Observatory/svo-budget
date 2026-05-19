@@ -11,7 +11,6 @@ import {
   Chip,
   CircularProgress,
   LinearProgress,
-  Paper,
   Stack,
   Typography,
 } from '@mui/material'
@@ -25,34 +24,34 @@ interface AllocationData {
   allocatedAmount: number
 }
 
-interface Transaction {
+interface BudgetEntryData {
   id: string
+  name: string
+  estimatedAmount: number
+  allocations: AllocationData[]
+}
+
+interface ActualData {
+  id: string
+  amount: number
   date: string
   vendor: string | null
-  amount: number
-  type: string
-}
-
-interface ActualsBySource {
+  qboTransactionType: string
   fundingSourceId: string | null
-  name: string
-  color: string
-  total: number
-  transactions: Transaction[]
+  fundingSourceName: string | null
+  fundingSourceColor: string | null
 }
 
-interface LineItemData {
+interface CategoryData {
   id: string
   name: string
-  displayPath: string
-  category: string | null
-  estimatedAmount: number
-  isActive: boolean
-  spent: number
-  remaining: number
-  allocationPct: number
-  allocations: AllocationData[]
-  actualsBySource: ActualsBySource[]
+  qboAccountId: string | null
+  sortOrder: number
+  totalBudget: number
+  totalSpent: number
+  totalAllocated: number
+  budgetEntries: BudgetEntryData[]
+  actuals: ActualData[]
 }
 
 interface FundingSourceData {
@@ -76,7 +75,7 @@ interface ProjectDetail {
   totalSpent: number
   fundingGap: number
   fundingSources: FundingSourceData[]
-  lineItems: LineItemData[]
+  categories: CategoryData[]
 }
 
 const fmt = (n: number) =>
@@ -153,7 +152,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <Typography sx={{ fontSize: '0.875rem' }} color="text.primary">{project.name}</Typography>
         </Breadcrumbs>
 
-        {/* Title + funding source chips */}
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1.25, flexWrap: 'wrap', gap: 1.5 }}>
           <Box>
             <Typography variant="h5" sx={{ mb: 0.25 }}>{project.name}</Typography>
@@ -181,7 +179,6 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           )}
         </Box>
 
-        {/* Summary bar */}
         <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
           <StatBox label="Total Budget" value={fmt(project.totalEstimated)} />
           <StatBox label="Allocated" value={fmt(project.totalSecured)} highlight={fundingGap <= 0 ? 'good' : undefined} />
@@ -213,10 +210,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           </Box>
         </Stack>
 
-        {/* Budget table */}
         <LineItemsTable
-          lineItems={project.lineItems}
-          isCatchAll={project.projectType === 'catch_all'}
+          categories={project.categories}
           projectId={id}
           fundingSources={allFundingSources}
           onUpdate={loadProject}

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { lineItemSpent, lineItemRemaining, fundingSourceSpent, projectSpent, projectFundingGap } from '@/lib/computed'
+import { fundingSourceSpent, projectFundingGap } from '@/lib/computed'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -11,65 +11,59 @@ export async function GET(
   const project = await prisma.project.findUnique({
     where: { id },
     include: {
-      lineItems: {
-        where: { isActive: true },
+      categories: {
+        orderBy: { sortOrder: 'asc' },
         include: {
+          budgetEntries: {
+            include: {
+              allocations: {
+                include: {
+                  fundingSource: { select: { id: true, name: true, color: true, allocatedTotal: true, qboClassId: true, qboClassName: true } },
+                },
+              },
+            },
+          },
           actuals: {
-            select: {
-              id: true,
-              amount: true,
-              date: true,
-              vendor: true,
-              qboTransactionType: true,
-              fundingSourceId: true,
-              fundingSource: { select: { name: true, color: true } },
+            include: {
+              fundingSource: { select: { id: true, name: true, color: true } },
             },
             orderBy: { date: 'desc' },
           },
-          allocations: {
-            include: {
-              fundingSource: { select: { id: true, name: true, color: true, allocatedTotal: true, qboClassId: true, qboClassName: true } },
-            },
-          },
         },
-        orderBy: { displayPath: 'asc' },
       },
     },
   })
 
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const allActuals = project.lineItems.flatMap((li) => li.actuals)
-  const totalSpent = projectSpent(allActuals)
-  const totalEstimated = project.lineItems.reduce((s, li) => s + li.estimatedAmount.toNumber(), 0)
+  const allActuals = project.categories.flatMap((c) => c.actuals)
+  const allEntries = project.categories.flatMap((c) => c.budgetEntries)
+  const allAllocations = allEntries.flatMap((e) => e.allocations)
 
-  // Secured = sum of allocations for this project's line items
-  const totalSecured = project.lineItems
-    .flatMap((li) => li.allocations)
-    .reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
+  const totalSpent = allActuals.reduce((s, a) => s + a.amount.toNumber(), 0)
+  const totalEstimated = allEntries.reduce((s, e) => s + e.estimatedAmount.toNumber(), 0)
+  const totalSecured = allAllocations.reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
 
-  // Deduplicate funding sources; compute per-project allocated + spent
+  // Deduplicate funding sources across all allocations
   const fsMap = new Map<string, {
     id: string; name: string; color: string
     allocatedToProject: number
     qboClassId: string; qboClassName: string
   }>()
-  for (const li of project.lineItems) {
-    for (const alloc of li.allocations) {
-      const fs = alloc.fundingSource
-      const entry = fsMap.get(fs.id)
-      if (entry) {
-        entry.allocatedToProject += alloc.allocatedAmount.toNumber()
-      } else {
-        fsMap.set(fs.id, {
-          id: fs.id,
-          name: fs.name,
-          color: fs.color,
-          allocatedToProject: alloc.allocatedAmount.toNumber(),
-          qboClassId: fs.qboClassId,
-          qboClassName: fs.qboClassName,
-        })
-      }
+  for (const alloc of allAllocations) {
+    const fs = alloc.fundingSource
+    const entry = fsMap.get(fs.id)
+    if (entry) {
+      entry.allocatedToProject += alloc.allocatedAmount.toNumber()
+    } else {
+      fsMap.set(fs.id, {
+        id: fs.id,
+        name: fs.name,
+        color: fs.color,
+        allocatedToProject: alloc.allocatedAmount.toNumber(),
+        qboClassId: fs.qboClassId,
+        qboClassName: fs.qboClassName,
+      })
     }
   }
 
@@ -87,63 +81,43 @@ export async function GET(
     }
   })
 
-  const lineItems = project.lineItems.map((li) => {
-    const spent = lineItemSpent(li.actuals)
-    const totalAllocated = li.allocations.reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
-    const allocationPct = li.estimatedAmount.toNumber() > 0
-      ? (totalAllocated / li.estimatedAmount.toNumber()) * 100
-      : 0
+  const categories = project.categories.map((cat) => {
+    const catSpent = cat.actuals.reduce((s, a) => s + a.amount.toNumber(), 0)
+    const catBudget = cat.budgetEntries.reduce((s, e) => s + e.estimatedAmount.toNumber(), 0)
+    const catAllocated = cat.budgetEntries
+      .flatMap((e) => e.allocations)
+      .reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
 
     return {
-      id: li.id,
-      name: li.name,
-      displayPath: li.displayPath,
-      category: li.category,
-      estimatedAmount: li.estimatedAmount.toNumber(),
-      qboAccountId: li.qboAccountId,
-      isActive: li.isActive,
-      spent,
-      remaining: lineItemRemaining(li.estimatedAmount, spent),
-      allocationPct: Math.round(allocationPct),
-      allocations: li.allocations.map((a) => ({
-        id: a.id,
-        fundingSourceId: a.fundingSource.id,
-        fundingSourceName: a.fundingSource.name,
-        fundingSourceColor: a.fundingSource.color,
-        allocatedAmount: a.allocatedAmount.toNumber(),
+      id: cat.id,
+      name: cat.name,
+      qboAccountId: cat.qboAccountId,
+      sortOrder: cat.sortOrder,
+      totalBudget: catBudget,
+      totalSpent: catSpent,
+      totalAllocated: catAllocated,
+      budgetEntries: cat.budgetEntries.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        estimatedAmount: entry.estimatedAmount.toNumber(),
+        allocations: entry.allocations.map((a) => ({
+          id: a.id,
+          fundingSourceId: a.fundingSource.id,
+          fundingSourceName: a.fundingSource.name,
+          fundingSourceColor: a.fundingSource.color,
+          allocatedAmount: a.allocatedAmount.toNumber(),
+        })),
       })),
-      actualsBySource: Object.values(
-        li.actuals.reduce<Record<string, {
-          fundingSourceId: string | null
-          name: string
-          color: string
-          total: number
-          transactions: { id: string; date: string; vendor: string | null; amount: number; type: string }[]
-        }>>(
-          (acc, actual) => {
-            const key = actual.fundingSourceId ?? '__untagged__'
-            if (!acc[key]) {
-              acc[key] = {
-                fundingSourceId: actual.fundingSourceId,
-                name: actual.fundingSource?.name ?? 'Untagged',
-                color: actual.fundingSource?.color ?? '#94a3b8',
-                total: 0,
-                transactions: [],
-              }
-            }
-            acc[key].total += actual.amount.toNumber()
-            acc[key].transactions.push({
-              id: actual.id,
-              date: actual.date.toISOString().slice(0, 10),
-              vendor: actual.vendor,
-              amount: actual.amount.toNumber(),
-              type: actual.qboTransactionType,
-            })
-            return acc
-          },
-          {}
-        )
-      ),
+      actuals: cat.actuals.map((a) => ({
+        id: a.id,
+        amount: a.amount.toNumber(),
+        date: a.date.toISOString().slice(0, 10),
+        vendor: a.vendor,
+        qboTransactionType: a.qboTransactionType,
+        fundingSourceId: a.fundingSourceId,
+        fundingSourceName: a.fundingSource?.name ?? null,
+        fundingSourceColor: a.fundingSource?.color ?? null,
+      })),
     }
   })
 
@@ -157,7 +131,7 @@ export async function GET(
     totalSpent,
     fundingGap: projectFundingGap(totalEstimated, totalSecured),
     fundingSources,
-    lineItems,
+    categories,
   })
 }
 

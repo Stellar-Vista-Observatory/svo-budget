@@ -20,7 +20,6 @@ model Project {
   qboAccountName   String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
-  lineItems        LineItem[]
   categories       Category[]
 
   @@map("projects")
@@ -42,61 +41,54 @@ model FundingSource {
 }
 
 model Category {
-  id        String     @id @default(uuid())
-  projectId String
-  name      String
-  sortOrder Int        @default(0)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  lineItems LineItem[]
+  id             String         @id @default(uuid())
+  projectId      String
+  name           String
+  sortOrder      Int            @default(0)
+  qboAccountId   String?        @unique
+  qboAccountName String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  budgetEntries  BudgetEntry[]
+  actuals        Actual[]
 
   @@index([projectId])
   @@map("categories")
 }
 
-model LineItem {
+model BudgetEntry {
   id              String       @id @default(uuid())
-  projectId       String
+  categoryId      String
   name            String
-  displayPath     String
-  category        String?
-  categoryId      String?
   estimatedAmount Decimal      @db.Decimal(12, 2) @default(0)
-  qboAccountId    String
-  qboAccountName  String
-  isActive        Boolean      @default(true)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  categoryRef     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category        Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   allocations     FundingAllocation[]
-  actuals         Actual[]
 
-  @@unique([qboAccountId])
-  @@index([projectId])
   @@index([categoryId])
-  @@map("line_items")
+  @@map("budget_entries")
 }
 
 model FundingAllocation {
   id              String        @id @default(uuid())
-  lineItemId      String
+  budgetEntryId   String
   fundingSourceId String
   allocatedAmount Decimal       @db.Decimal(12, 2)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  lineItem        LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  budgetEntry     BudgetEntry   @relation(fields: [budgetEntryId], references: [id], onDelete: Cascade)
   fundingSource   FundingSource @relation(fields: [fundingSourceId], references: [id], onDelete: Cascade)
 
-  @@unique([lineItemId, fundingSourceId])
+  @@unique([budgetEntryId, fundingSourceId])
   @@index([fundingSourceId])
   @@map("funding_allocations")
 }
 
 model Actual {
   id                 String        @id @default(uuid())
-  lineItemId         String
+  categoryId         String
   fundingSourceId    String?
   amount             Decimal       @db.Decimal(12, 2)
   date               DateTime      @db.Date
@@ -104,11 +96,11 @@ model Actual {
   qboTransactionId   String
   qboTransactionType String
   createdAt          DateTime      @default(now())
-  lineItem           LineItem      @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  category           Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   fundingSource      FundingSource? @relation(fields: [fundingSourceId], references: [id], onDelete: SetNull)
 
-  @@unique([qboTransactionId, lineItemId])
-  @@index([lineItemId])
+  @@unique([qboTransactionId, categoryId])
+  @@index([categoryId])
   @@index([fundingSourceId])
   @@map("actuals")
 }

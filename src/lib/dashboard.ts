@@ -6,17 +6,19 @@ type Allocation = {
   allocatedAmount: Prisma.Decimal
   fundingSource: { id: string; name: string; color: string }
 }
-type LineItem = {
-  id: string
+type BudgetEntry = {
   estimatedAmount: Prisma.Decimal
-  actuals: Actual[]
   allocations: Allocation[]
+}
+type Category = {
+  budgetEntries: BudgetEntry[]
+  actuals: Actual[]
 }
 type Project = {
   id: string
   name: string
   projectType: ProjectType
-  lineItems: LineItem[]
+  categories: Category[]
 }
 
 export function buildDashboardData(projects: Project[]) {
@@ -25,32 +27,27 @@ export function buildDashboardData(projects: Project[]) {
   let totalSpent = 0
 
   const projectCards = projects.map((p) => {
-    const allActuals = p.lineItems.flatMap((li) => li.actuals)
+    const allActuals = p.categories.flatMap((c) => c.actuals)
+    const allEntries = p.categories.flatMap((c) => c.budgetEntries)
+    const allAllocations = allEntries.flatMap((e) => e.allocations)
+
     const spent = projectSpent(allActuals)
-    const estimated = p.lineItems.reduce((s, li) => s + li.estimatedAmount.toNumber(), 0)
-
-    // Secured = sum of all allocations on this project's line items
-    const secured = p.lineItems
-      .flatMap((li) => li.allocations)
-      .reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
-
+    const estimated = allEntries.reduce((s, e) => s + e.estimatedAmount.toNumber(), 0)
+    const secured = allAllocations.reduce((s, a) => s + a.allocatedAmount.toNumber(), 0)
     const fundingGap = projectFundingGap(estimated, secured)
 
     totalEstimated += estimated
     totalSecured += secured
     totalSpent += spent
 
-    // Deduplicate funding sources; sum per-project allocated amounts
     const fsMap = new Map<string, { id: string; name: string; color: string; allocated: number }>()
-    for (const li of p.lineItems) {
-      for (const alloc of li.allocations) {
-        const fs = alloc.fundingSource
-        const entry = fsMap.get(fs.id)
-        if (entry) {
-          entry.allocated += alloc.allocatedAmount.toNumber()
-        } else {
-          fsMap.set(fs.id, { id: fs.id, name: fs.name, color: fs.color, allocated: alloc.allocatedAmount.toNumber() })
-        }
+    for (const alloc of allAllocations) {
+      const fs = alloc.fundingSource
+      const entry = fsMap.get(fs.id)
+      if (entry) {
+        entry.allocated += alloc.allocatedAmount.toNumber()
+      } else {
+        fsMap.set(fs.id, { id: fs.id, name: fs.name, color: fs.color, allocated: alloc.allocatedAmount.toNumber() })
       }
     }
 
@@ -69,7 +66,7 @@ export function buildDashboardData(projects: Project[]) {
       secured,
       spent,
       fundingGap,
-      lineItemCount: p.lineItems.length,
+      lineItemCount: allEntries.length,
       fundingSources: fundingSourceSummaries,
     }
   })

@@ -118,7 +118,7 @@ export default function SettingsPage() {
     const res = await fetch('/api/qbo/sync', { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
-      setSyncResult(`Sync complete — ${data.lineItemsUpserted} line items, ${data.actualsUpserted} actuals updated.`)
+      setSyncResult(`Sync complete — ${data.categoriesSynced} categories, ${data.actualsUpserted} actuals updated.`)
       await loadStatus()
       await loadAccountsAndProjects()
     } else {
