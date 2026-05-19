@@ -1,7 +1,29 @@
 'use client'
 
-import React, { useState } from 'react'
-import { AllocationRow } from './AllocationRow'
+import React, { useState, useRef, Fragment } from 'react'
+import {
+  Box,
+  Button,
+  Chip,
+  IconButton,
+  Input,
+  LinearProgress,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from '@mui/material'
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
+import LockIcon from '@mui/icons-material/Lock'
 
 interface AllocationData {
   id: string
@@ -31,6 +53,7 @@ interface LineItemData {
   id: string
   name: string
   displayPath: string
+  category: string | null
   estimatedAmount: number
   spent: number
   remaining: number
@@ -54,286 +77,652 @@ interface LineItemsTableProps {
   onUpdate: () => void
 }
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
+
+const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
+
+type ViewMode = 'collapsed' | 'summary' | 'expanded'
+
+const baseCellSx = {
+  fontSize: '0.78rem',
+  py: 0.4,
+  px: 1,
+  borderBottom: '1px solid',
+  borderColor: 'divider',
+  whiteSpace: 'nowrap' as const,
+}
+
+// ── Editable Cell ─────────────────────────────────────────────────────────────
+
 function EditableCell({
   value,
-  onSave,
-  type = 'text',
+  align = 'right',
+  onCommit,
+  indent,
 }: {
   value: string
-  onSave: (v: string) => Promise<void>
-  type?: 'text' | 'number'
+  align?: 'left' | 'right'
+  onCommit: (v: string) => void
+  indent?: number
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
-  const [saving, setSaving] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  async function handleSave() {
-    if (saving || draft === value) { setEditing(false); return }
-    setSaving(true)
-    await onSave(draft)
-    setEditing(false)
-    setSaving(false)
+  function start() {
+    setDraft(value)
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
   }
+
+  function commit() {
+    setEditing(false)
+    if (draft !== value) onCommit(draft)
+  }
+
+  const extraSx = indent ? { pl: indent } : {}
 
   if (editing) {
     return (
-      <input
-        type={type}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={handleSave}
-        onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setEditing(false) }}
-        autoFocus
-        disabled={saving}
-        className="w-full border border-blue-400 rounded px-2 py-0.5 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-      />
+      <TableCell align={align} sx={{ ...baseCellSx, p: 0, ...extraSx }}>
+        <Input
+          inputRef={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') setEditing(false)
+          }}
+          disableUnderline
+          sx={{
+            width: '100%',
+            fontSize: '0.78rem',
+            px: 1,
+            py: 0.4,
+            bgcolor: '#fff',
+            border: '2px solid',
+            borderColor: 'primary.main',
+            borderRadius: 0.5,
+            '& input': { textAlign: align, p: 0 },
+          }}
+        />
+      </TableCell>
     )
   }
 
   return (
-    <button
-      onClick={() => { setDraft(value); setEditing(true) }}
-      className="text-left w-full border-b border-dashed border-blue-300 hover:border-blue-500 pb-0.5 group"
-      title="Click to edit"
+    <TableCell
+      align={align}
+      onClick={start}
+      sx={{
+        ...baseCellSx,
+        ...extraSx,
+        cursor: 'text',
+        '&:hover': {
+          bgcolor: '#f0f7ff',
+          outline: '1.5px dashed',
+          outlineColor: 'primary.light',
+          outlineOffset: '-2px',
+        },
+      }}
     >
-      {value || <span className="text-slate-400 italic">—</span>}
-      <span className="ml-1 text-slate-400 opacity-0 group-hover:opacity-100 text-xs">✎</span>
-    </button>
+      <Typography sx={{ fontSize: '0.78rem' }}>{value}</Typography>
+    </TableCell>
   )
 }
 
-export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate }: LineItemsTableProps) {
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [expandedActuals, setExpandedActuals] = useState<Set<string>>(new Set())
+// ── Allocation Bar ────────────────────────────────────────────────────────────
 
-  function toggleActuals(key: string) {
-    setExpandedActuals((prev) => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+function AllocationBar({
+  allocations,
+  fundingSources,
+  total,
+}: {
+  allocations: Record<string, number>
+  fundingSources: FundingSourceOption[]
+  total: number
+}) {
+  if (total === 0) return null
+  return (
+    <Tooltip
+      title={
+        <Stack spacing={0.4}>
+          {fundingSources.map((fs) => {
+            const v = allocations[fs.id] ?? 0
+            if (v === 0) return null
+            return (
+              <Box key={fs.id} sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: fs.color, flexShrink: 0 }} />
+                <Typography variant="caption">{fs.name}: {fmt(v)}</Typography>
+              </Box>
+            )
+          })}
+        </Stack>
+      }
+    >
+      <Box sx={{ display: 'flex', height: 5, borderRadius: 2, overflow: 'hidden', width: 36, flexShrink: 0, cursor: 'default' }}>
+        {fundingSources.map((fs) => {
+          const v = allocations[fs.id] ?? 0
+          const w = pct(v, total)
+          if (w === 0) return null
+          return <Box key={fs.id} sx={{ width: `${w}%`, bgcolor: fs.color }} />
+        })}
+      </Box>
+    </Tooltip>
+  )
+}
+
+// ── Budget Section ────────────────────────────────────────────────────────────
+
+function BudgetSection({
+  lineItems,
+  fundingSources,
+  isCatchAll,
+  defaultOpen,
+  onPatchLineItem,
+  onUpdateAllocation,
+}: {
+  lineItems: LineItemData[]
+  fundingSources: FundingSourceOption[]
+  isCatchAll: boolean
+  defaultOpen: boolean
+  onPatchLineItem: (id: string, patch: Record<string, unknown>) => void
+  onUpdateAllocation: (lineItemId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  const totalBudget = lineItems.reduce((s, li) => s + li.estimatedAmount, 0)
+  const totalAllocated = lineItems.reduce(
+    (s, li) => s + li.allocations.reduce((a, alloc) => a + alloc.allocatedAmount, 0), 0
+  )
+  const allocBySource: Record<string, number> = {}
+  for (const fs of fundingSources) {
+    allocBySource[fs.id] = lineItems.reduce(
+      (s, li) => s + (li.allocations.find((a) => a.fundingSourceId === fs.id)?.allocatedAmount ?? 0), 0
+    )
   }
-  const [addingSourceFor, setAddingSourceFor] = useState<string | null>(null)
-  const [selectedFsId, setSelectedFsId] = useState('')
-  const [newAllocationAmount, setNewAllocationAmount] = useState('')
-  const [saving, setSaving] = useState(false)
+  const coverageDelta = totalBudget - totalAllocated
 
-  async function patchLineItem(id: string, patch: Record<string, unknown>) {
-    await fetch(`/api/line-items/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    })
-    onUpdate()
+  const subHdrSx = { ...baseCellSx, py: 0.35, bgcolor: '#f0f4f8', fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary' }
+
+  return (
+    <>
+      <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={{ ...subHdrSx, pl: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <IconButton size="small" sx={{ p: 0.15 }}>
+              {open ? <KeyboardArrowDownIcon sx={{ fontSize: 13 }} /> : <KeyboardArrowRightIcon sx={{ fontSize: 13 }} />}
+            </IconButton>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+              Budgeted
+            </Typography>
+          </Box>
+        </TableCell>
+        <TableCell align="right" sx={{ ...subHdrSx, color: 'text.disabled', fontStyle: 'italic' }}>
+          {fmt(totalBudget)}
+        </TableCell>
+        {fundingSources.map((fs) => (
+          <TableCell key={fs.id} align="right" sx={{ ...subHdrSx, borderLeft: `2px solid ${fs.color}33` }}>
+            {allocBySource[fs.id] > 0 ? fmt(allocBySource[fs.id]) : <span style={{ color: '#ccc' }}>—</span>}
+          </TableCell>
+        ))}
+        <TableCell align="right" sx={subHdrSx}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+            <AllocationBar allocations={allocBySource} fundingSources={fundingSources} total={totalAllocated} />
+            {fmt(totalAllocated)}
+          </Box>
+        </TableCell>
+        <TableCell align="right" sx={{ ...subHdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828' }}>
+          {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
+        </TableCell>
+        <TableCell sx={subHdrSx} />
+        <TableCell sx={subHdrSx} />
+        <TableCell sx={subHdrSx} />
+      </TableRow>
+
+      {open && lineItems.map((li) => {
+        const allocMap: Record<string, number> = {}
+        const allocIdMap: Record<string, string> = {}
+        for (const a of li.allocations) {
+          allocMap[a.fundingSourceId] = a.allocatedAmount
+          allocIdMap[a.fundingSourceId] = a.id
+        }
+        const allocated = li.allocations.reduce((s, a) => s + a.allocatedAmount, 0)
+        const liCoverage = li.estimatedAmount - allocated
+
+        return (
+          <TableRow key={li.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#eef6ff' } }}>
+            <TableCell sx={{ ...baseCellSx, pl: 4 }}>
+              <Typography sx={{ fontSize: '0.78rem' }}>
+                {isCatchAll ? li.displayPath : li.name}
+              </Typography>
+            </TableCell>
+            <EditableCell
+              value={fmt(li.estimatedAmount)}
+              align="right"
+              onCommit={(v) => {
+                const num = parseFloat(v.replace(/[^0-9.-]/g, ''))
+                if (!isNaN(num)) onPatchLineItem(li.id, { estimatedAmount: num })
+              }}
+            />
+            {fundingSources.map((fs) => (
+              <EditableCell
+                key={fs.id}
+                value={allocMap[fs.id] ? fmt(allocMap[fs.id]) : '—'}
+                align="right"
+                onCommit={(v) => {
+                  const num = parseFloat(v.replace(/[^0-9.-]/g, ''))
+                  onUpdateAllocation(li.id, fs.id, allocIdMap[fs.id] ?? null, isNaN(num) ? 0 : num)
+                }}
+              />
+            ))}
+            <TableCell align="right" sx={baseCellSx}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                <AllocationBar allocations={allocMap} fundingSources={fundingSources} total={allocated} />
+                <Typography sx={{ fontSize: '0.78rem' }}>{allocated > 0 ? fmt(allocated) : <span style={{ color: '#bbb' }}>—</span>}</Typography>
+              </Box>
+            </TableCell>
+            <TableCell align="right" sx={baseCellSx}>
+              {liCoverage === 0
+                ? <Typography sx={{ fontSize: '0.78rem', color: '#2e7d32' }}>—</Typography>
+                : <Typography sx={{ fontSize: '0.78rem', fontWeight: 500, color: liCoverage > 0 ? '#e65100' : '#c62828' }}>
+                    {fmt(Math.abs(liCoverage))}{liCoverage > 0 ? ' gap' : ' over'}
+                  </Typography>
+              }
+            </TableCell>
+            <TableCell sx={baseCellSx} />
+            <TableCell sx={baseCellSx} />
+            <TableCell sx={baseCellSx} />
+          </TableRow>
+        )
+      })}
+    </>
+  )
+}
+
+// ── Actuals Section ───────────────────────────────────────────────────────────
+
+function ActualsSection({
+  lineItems,
+  fundingSources,
+  defaultOpen,
+}: {
+  lineItems: LineItemData[]
+  fundingSources: FundingSourceOption[]
+  defaultOpen: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  // Aggregate actuals across all line items in this category, grouped by funding source
+  const actualBySource: Record<string, { total: number; transactions: Transaction[] }> = {}
+  for (const li of lineItems) {
+    for (const a of li.actualsBySource) {
+      const key = a.fundingSourceId ?? '__untagged__'
+      if (!actualBySource[key]) actualBySource[key] = { total: 0, transactions: [] }
+      actualBySource[key].total += a.total
+      actualBySource[key].transactions.push(...a.transactions)
+    }
   }
 
-  async function patchAllocation(id: string, amount: number) {
-    await fetch(`/api/funding-allocations/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ allocatedAmount: amount }),
-    })
-    onUpdate()
+  const totalActual = Object.values(actualBySource).reduce((s, a) => s + a.total, 0)
+  if (totalActual === 0) return null
+
+  const actualBySourceId: Record<string, number> = {}
+  for (const fs of fundingSources) {
+    actualBySourceId[fs.id] = actualBySource[fs.id]?.total ?? 0
   }
 
-  async function deleteAllocation(id: string) {
-    await fetch(`/api/funding-allocations/${id}`, { method: 'DELETE' })
-    onUpdate()
-  }
+  const subHdrSx = { ...baseCellSx, py: 0.35, bgcolor: '#f0f4f8', fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary' }
 
-  async function addAllocation(lineItemId: string) {
-    if (!selectedFsId || !newAllocationAmount) return
-    setSaving(true)
-    await fetch(`/api/line-items/${lineItemId}/allocations`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fundingSourceId: selectedFsId, allocatedAmount: parseFloat(newAllocationAmount) }),
-    })
-    setAddingSourceFor(null)
-    setSelectedFsId('')
-    setNewAllocationAmount('')
-    setSaving(false)
-    onUpdate()
-  }
+  return (
+    <>
+      <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={{ ...subHdrSx, pl: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <IconButton size="small" sx={{ p: 0.15 }}>
+              {open ? <KeyboardArrowDownIcon sx={{ fontSize: 13 }} /> : <KeyboardArrowRightIcon sx={{ fontSize: 13 }} />}
+            </IconButton>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+              Actuals
+            </Typography>
+            <Chip
+              size="small"
+              icon={<LockIcon sx={{ fontSize: '9px !important' }} />}
+              label="QBO · Read only"
+              sx={{ height: 16, fontSize: '0.62rem', bgcolor: '#f3e5f5', color: '#6a1b9a', border: '1px solid #ce93d8', '& .MuiChip-icon': { color: '#6a1b9a' } }}
+            />
+          </Box>
+        </TableCell>
+        <TableCell sx={subHdrSx} />
+        {fundingSources.map((fs) => (
+          <TableCell key={fs.id} align="right" sx={{ ...subHdrSx, borderLeft: `2px solid ${fs.color}33` }}>
+            {actualBySourceId[fs.id] > 0 ? fmt(actualBySourceId[fs.id]) : <span style={{ color: '#ccc' }}>—</span>}
+          </TableCell>
+        ))}
+        <TableCell sx={subHdrSx} />
+        <TableCell sx={subHdrSx} />
+        <TableCell align="right" sx={subHdrSx}>{fmt(totalActual)}</TableCell>
+        <TableCell sx={subHdrSx} />
+        <TableCell sx={subHdrSx} />
+      </TableRow>
 
-  if (lineItems.length === 0) {
-    return <p className="text-slate-500 text-base">No line items yet. Run a QBO sync to import data.</p>
+      {open && lineItems.flatMap((li) => li.actualsBySource).flatMap((a) =>
+        a.transactions.map((txn) => {
+          const fs = fundingSources.find((f) => f.id === a.fundingSourceId)
+          return (
+            <TableRow key={txn.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#fffde7' } }}>
+              <TableCell sx={{ ...baseCellSx, pl: 4 }}>
+                <Typography sx={{ fontSize: '0.78rem' }}>
+                  <Box component="span" sx={{ color: 'text.disabled', fontSize: '0.72rem', mr: 0.75 }}>
+                    {txn.date}
+                  </Box>
+                  {txn.vendor ?? txn.type}
+                </Typography>
+              </TableCell>
+              <TableCell sx={baseCellSx} />
+              {fundingSources.map((f) => (
+                <TableCell key={f.id} align="right" sx={{ ...baseCellSx, borderLeft: `2px solid ${f.color}22` }}>
+                  {f.id === a.fundingSourceId
+                    ? <Typography sx={{ fontSize: '0.78rem', color: fs?.color, fontWeight: 500 }}>{fmt(txn.amount)}</Typography>
+                    : <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>—</Typography>
+                  }
+                </TableCell>
+              ))}
+              <TableCell sx={baseCellSx} />
+              <TableCell sx={baseCellSx} />
+              <TableCell align="right" sx={baseCellSx}>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 500 }}>{fmt(txn.amount)}</Typography>
+              </TableCell>
+              <TableCell sx={baseCellSx} />
+              <TableCell sx={baseCellSx} />
+            </TableRow>
+          )
+        })
+      )}
+    </>
+  )
+}
+
+// ── Category Row ──────────────────────────────────────────────────────────────
+
+function CategoryRow({
+  categoryName,
+  lineItems,
+  fundingSources,
+  isCatchAll,
+  viewMode,
+  defaultOpen,
+  onPatchLineItem,
+  onUpdateAllocation,
+}: {
+  categoryName: string
+  lineItems: LineItemData[]
+  fundingSources: FundingSourceOption[]
+  isCatchAll: boolean
+  viewMode: ViewMode
+  defaultOpen: boolean
+  onPatchLineItem: (id: string, patch: Record<string, unknown>) => void
+  onUpdateAllocation: (lineItemId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  const totalBudget = lineItems.reduce((s, li) => s + li.estimatedAmount, 0)
+  const totalAllocated = lineItems.reduce(
+    (s, li) => s + li.allocations.reduce((a, alloc) => a + alloc.allocatedAmount, 0), 0
+  )
+  const totalActual = lineItems.reduce((s, li) => s + li.spent, 0)
+  const coverageDelta = totalBudget - totalAllocated
+  const remaining = totalBudget - totalActual
+  const spentPct = pct(totalActual, totalBudget)
+
+  const hdrSx = {
+    py: 0.75,
+    fontWeight: 700,
+    fontSize: '0.82rem',
+    px: 1,
+    bgcolor: '#eef2f7',
+    ...(open
+      ? { borderTop: '2px solid', borderBottom: '2px solid', borderColor: 'primary.light' }
+      : { borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }),
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full text-base">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="text-left font-medium text-slate-600 px-4 py-3">Line Item</th>
-            <th className="text-right font-medium text-slate-600 px-4 py-3">Estimated</th>
-            <th className="text-right font-medium text-slate-600 px-4 py-3">Spent</th>
-            <th className="text-right font-medium text-slate-600 px-4 py-3">Remaining</th>
-          </tr>
-        </thead>
-        <tbody>
-          {lineItems.map((li) => {
-            const isExpanded = expandedId === li.id
-            return (
-              <React.Fragment key={li.id}>
-                <tr
-                  className={`border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors ${isExpanded ? 'bg-blue-50/30' : ''}`}
-                  onClick={() => setExpandedId(isExpanded ? null : li.id)}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-xs w-3">{isExpanded ? '▼' : '▶'}</span>
-                      <span className="text-slate-900">
-                        {isCatchAll ? li.displayPath : li.name}
-                      </span>
-                      {li.allocationPct < 100 && li.estimatedAmount > 0 && (
-                        <span className="text-xs font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded ml-1">
-                          {li.allocationPct}% allocated
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums" onClick={(e) => e.stopPropagation()}>
-                    <EditableCell
-                      value={String(li.estimatedAmount)}
-                      type="number"
-                      onSave={(v) => patchLineItem(li.id, { estimatedAmount: parseFloat(v) })}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-blue-700">${li.spent.toLocaleString()}</td>
-                  <td className={`px-4 py-3 text-right tabular-nums ${li.remaining < 0 ? 'text-red-600' : 'text-green-700'}`}>
-                    ${li.remaining.toLocaleString()}
-                  </td>
-                </tr>
+    <>
+      <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={hdrSx}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <IconButton size="small" sx={{ p: 0.2 }}>
+              {open ? <KeyboardArrowDownIcon sx={{ fontSize: 14 }} /> : <KeyboardArrowRightIcon sx={{ fontSize: 14 }} />}
+            </IconButton>
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>{categoryName}</Typography>
+            <Chip size="small" label={`${lineItems.length}`} sx={{ height: 16, fontSize: '0.6rem', ml: 0.25 }} />
+          </Box>
+        </TableCell>
+        <TableCell align="right" sx={hdrSx}>{fmt(totalBudget)}</TableCell>
+        {fundingSources.map((fs) => (
+          <TableCell key={fs.id} sx={{ ...hdrSx, borderLeft: `2px solid ${fs.color}33` }} />
+        ))}
+        <TableCell align="right" sx={hdrSx}>{fmt(totalAllocated)}</TableCell>
+        <TableCell align="right" sx={{ ...hdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828', fontSize: '0.78rem' }}>
+          {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
+        </TableCell>
+        <TableCell align="right" sx={hdrSx}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+            {totalBudget > 0 && (
+              <Box sx={{ width: 44 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min(spentPct, 100)}
+                  sx={{
+                    height: 4,
+                    borderRadius: 2,
+                    bgcolor: '#e0e0e0',
+                    '& .MuiLinearProgress-bar': { bgcolor: spentPct > 100 ? '#c62828' : spentPct > 85 ? '#f57c00' : '#388e3c' },
+                  }}
+                />
+              </Box>
+            )}
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
+              {totalActual === 0 ? <span style={{ color: '#9e9e9e' }}>$0</span> : fmt(totalActual)}
+            </Typography>
+          </Box>
+        </TableCell>
+        <TableCell align="right" sx={hdrSx}>
+          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining < 0 ? '#c62828' : '#2e7d32' }}>
+            {totalBudget === 0 && totalActual === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
+          </Typography>
+        </TableCell>
+        <TableCell sx={hdrSx} />
+      </TableRow>
 
-                {isExpanded && (
-                  <>
-                    {li.allocations.map((alloc) => (
-                      <AllocationRow
-                        key={alloc.id}
-                        allocationId={alloc.id}
-                        fundingSourceName={alloc.fundingSourceName}
-                        fundingSourceColor={alloc.fundingSourceColor}
-                        allocatedAmount={alloc.allocatedAmount}
-                        onUpdate={(amount) => patchAllocation(alloc.id, amount)}
-                        onDelete={() => deleteAllocation(alloc.id)}
-                      />
-                    ))}
+      {open && (
+        <Fragment key={`${categoryName}-${viewMode}`}>
+          <BudgetSection
+            lineItems={lineItems}
+            fundingSources={fundingSources}
+            isCatchAll={isCatchAll}
+            defaultOpen={viewMode === 'expanded'}
+            onPatchLineItem={onPatchLineItem}
+            onUpdateAllocation={onUpdateAllocation}
+          />
+          <ActualsSection
+            lineItems={lineItems}
+            fundingSources={fundingSources}
+            defaultOpen={viewMode === 'expanded'}
+          />
+        </Fragment>
+      )}
+    </>
+  )
+}
 
-                    {li.actualsBySource.length > 0 && (
-                      <>
-                        <tr className="bg-slate-50/50">
-                          <td className="pl-10 pr-4 py-1.5 text-xs font-medium text-slate-400 uppercase tracking-wide" colSpan={5}>
-                            Actual Spending
-                          </td>
-                        </tr>
-                        {li.actualsBySource.map((a) => {
-                          const key = `${li.id}-${a.fundingSourceId ?? '__untagged__'}`
-                          const isOpen = expandedActuals.has(key)
-                          return (
-                            <React.Fragment key={key}>
-                              <tr className="bg-slate-50/50 border-b border-slate-100">
-                                <td className="pl-10 pr-4 py-2" colSpan={2}>
-                                  <button
-                                    className="flex items-center gap-2 text-left hover:opacity-75"
-                                    onClick={(e) => { e.stopPropagation(); toggleActuals(key) }}
-                                  >
-                                    <span className="text-slate-400 text-xs w-3">{isOpen ? '▼' : '▶'}</span>
-                                    <span
-                                      className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: a.color }}
-                                    />
-                                    <span className="text-sm text-slate-600">{a.name}</span>
-                                  </button>
-                                </td>
-                                <td className="px-4 py-2 text-right text-sm tabular-nums text-slate-700" colSpan={3}>
-                                  ${a.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                              </tr>
-                              {isOpen && a.transactions.map((txn) => (
-                                <tr key={txn.id} className="bg-white border-b border-slate-100">
-                                  <td className="pl-16 pr-4 py-1.5 text-sm text-slate-500" colSpan={2}>
-                                    <span className="tabular-nums text-slate-400 mr-3">{txn.date}</span>
-                                    {txn.vendor ?? txn.type}
-                                  </td>
-                                  <td className="px-4 py-1.5 text-right text-sm tabular-nums text-slate-600" colSpan={3}>
-                                    ${txn.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                </tr>
-                              ))}
-                            </React.Fragment>
-                          )
-                        })}
-                      </>
-                    )}
+// ── Totals Row ────────────────────────────────────────────────────────────────
 
-                    {addingSourceFor === li.id ? (
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <td className="pl-10 pr-4 py-2" colSpan={2} onClick={(e) => e.stopPropagation()}>
-                          <select
-                            value={selectedFsId}
-                            onChange={(e) => setSelectedFsId(e.target.value)}
-                            className="text-base border border-slate-300 rounded px-2 py-1 bg-white"
-                          >
-                            <option value="">Select funding source…</option>
-                            {fundingSources
-                              .filter((fs) => !li.allocations.some((a) => a.fundingSourceId === fs.id))
-                              .map((fs) => (
-                                <option key={fs.id} value={fs.id}>{fs.name}</option>
-                              ))}
-                          </select>
-                        </td>
-                        <td className="px-4 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            <span className="text-slate-500">$</span>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={newAllocationAmount}
-                              onChange={(e) => setNewAllocationAmount(e.target.value)}
-                              className="w-28 border border-slate-300 rounded px-2 py-1 text-base text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                        </td>
-                        <td className="px-4 py-2 text-right" colSpan={2} onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => addAllocation(li.id)}
-                              disabled={saving || !selectedFsId || !newAllocationAmount}
-                              className="text-sm font-medium text-blue-700 hover:text-blue-900 disabled:opacity-50"
-                            >
-                              {saving ? 'Adding…' : 'Add'}
-                            </button>
-                            <button
-                              onClick={() => { setAddingSourceFor(null); setSelectedFsId(''); setNewAllocationAmount('') }}
-                              className="text-sm text-slate-500 hover:text-slate-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <td className="pl-10 pr-4 py-2" colSpan={5} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => setAddingSourceFor(li.id)}
-                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            + Add source
-                          </button>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                )}
-              </React.Fragment>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+function TotalsRow({
+  lineItems,
+  fundingSources,
+}: {
+  lineItems: LineItemData[]
+  fundingSources: FundingSourceOption[]
+}) {
+  const totalBudget = lineItems.reduce((s, li) => s + li.estimatedAmount, 0)
+  const totalAllocated = lineItems.reduce(
+    (s, li) => s + li.allocations.reduce((a, alloc) => a + alloc.allocatedAmount, 0), 0
+  )
+  const totalActual = lineItems.reduce((s, li) => s + li.spent, 0)
+  const coverageDelta = totalBudget - totalAllocated
+  const remaining = totalBudget - totalActual
+
+  const cellSx = {
+    py: 1,
+    fontWeight: 700,
+    fontSize: '0.82rem',
+    px: 1,
+    bgcolor: '#e8eaf6',
+    borderTop: '3px solid',
+    borderColor: 'primary.main',
+  }
+
+  return (
+    <TableRow>
+      <TableCell sx={cellSx}>TOTAL</TableCell>
+      <TableCell align="right" sx={cellSx}>{fmt(totalBudget)}</TableCell>
+      {fundingSources.map((fs) => (
+        <TableCell key={fs.id} sx={{ ...cellSx, borderLeft: `2px solid ${fs.color}44` }} />
+      ))}
+      <TableCell align="right" sx={cellSx}>{fmt(totalAllocated)}</TableCell>
+      <TableCell align="right" sx={{ ...cellSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828' }}>
+        {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
+      </TableCell>
+      <TableCell align="right" sx={cellSx}>{fmt(totalActual)}</TableCell>
+      <TableCell align="right" sx={{ ...cellSx, color: remaining < 0 ? '#c62828' : '#2e7d32' }}>
+        {fmt(remaining)}
+      </TableCell>
+      <TableCell sx={cellSx} />
+    </TableRow>
+  )
+}
+
+// ── Main Table ────────────────────────────────────────────────────────────────
+
+export function LineItemsTable({ lineItems, isCatchAll, fundingSources, onUpdate }: LineItemsTableProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('expanded')
+
+  const grouped = React.useMemo(() => {
+    const map = new Map<string, LineItemData[]>()
+    for (const li of lineItems) {
+      const cat = li.category ?? 'Uncategorized'
+      if (!map.has(cat)) map.set(cat, [])
+      map.get(cat)!.push(li)
+    }
+    return Array.from(map.entries())
+  }, [lineItems])
+
+  function patchLineItem(id: string, patch: Record<string, unknown>) {
+    fetch(`/api/line-items/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).then(onUpdate)
+  }
+
+  function updateAllocation(lineItemId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) {
+    if (amount <= 0 && existingAllocId) {
+      fetch(`/api/funding-allocations/${existingAllocId}`, { method: 'DELETE' }).then(onUpdate)
+    } else if (amount > 0 && existingAllocId) {
+      fetch(`/api/funding-allocations/${existingAllocId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allocatedAmount: amount }),
+      }).then(onUpdate)
+    } else if (amount > 0 && !existingAllocId) {
+      fetch(`/api/line-items/${lineItemId}/allocations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fundingSourceId, allocatedAmount: amount }),
+      }).then(onUpdate)
+    }
+  }
+
+  if (lineItems.length === 0) {
+    return (
+      <Typography color="text.secondary">
+        No line items yet. Run a QBO sync to import data.
+      </Typography>
+    )
+  }
+
+  return (
+    <Box>
+      {/* View mode toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.75 }}>
+        <ToggleButtonGroup
+          value={viewMode}
+          exclusive
+          onChange={(_, v) => v && setViewMode(v)}
+          size="small"
+          sx={{ '& .MuiToggleButton-root': { px: 1.5, py: 0.4, fontSize: '0.72rem', textTransform: 'none' } }}
+        >
+          <ToggleButton value="collapsed">Collapsed</ToggleButton>
+          <ToggleButton value="summary">Summary</ToggleButton>
+          <ToggleButton value="expanded">Expanded</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+
+      <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2, maxHeight: 'calc(100vh - 300px)', overflow: 'auto', width: '100%' }}>
+        <Table stickyHeader size="small" sx={{ tableLayout: 'auto', width: '100%' }}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, minWidth: 220, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                Category / Item
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                Budget
+              </TableCell>
+              {fundingSources.map((fs) => (
+                <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
+                  <Tooltip title={fs.name}>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fs.name.length > 10 ? fs.name.slice(0, 10) + '…' : fs.name}</Typography>
+                  </Tooltip>
+                </TableCell>
+              ))}
+              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                Allocated
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Coverage</Typography>
+                <Typography sx={{ fontSize: '0.61rem', color: '#ffffffaa', lineHeight: 1.1 }}>Budget−Alloc</Typography>
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                Actuals
+              </TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Remaining</Typography>
+                <Typography sx={{ fontSize: '0.61rem', color: '#ffffffaa', lineHeight: 1.1 }}>Budget−Actuals</Typography>
+              </TableCell>
+              <TableCell sx={{ width: 32, py: 1, px: 0, bgcolor: 'primary.main' }} />
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {grouped.map(([categoryName, items]) => (
+              <CategoryRow
+                key={`${categoryName}-${viewMode}`}
+                categoryName={categoryName}
+                lineItems={items}
+                fundingSources={fundingSources}
+                isCatchAll={isCatchAll}
+                viewMode={viewMode}
+                defaultOpen={viewMode !== 'collapsed'}
+                onPatchLineItem={patchLineItem}
+                onUpdateAllocation={updateAllocation}
+              />
+            ))}
+            <TotalsRow lineItems={lineItems} fundingSources={fundingSources} />
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
   )
 }

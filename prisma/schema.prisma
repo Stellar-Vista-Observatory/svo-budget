@@ -21,6 +21,7 @@ model Project {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   lineItems        LineItem[]
+  categories       Category[]
 
   @@map("projects")
 }
@@ -40,12 +41,27 @@ model FundingSource {
   @@map("funding_sources")
 }
 
+model Category {
+  id        String     @id @default(uuid())
+  projectId String
+  name      String
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lineItems LineItem[]
+
+  @@index([projectId])
+  @@map("categories")
+}
+
 model LineItem {
   id              String       @id @default(uuid())
   projectId       String
   name            String
   displayPath     String
   category        String?
+  categoryId      String?
   estimatedAmount Decimal      @db.Decimal(12, 2) @default(0)
   qboAccountId    String
   qboAccountName  String
@@ -53,11 +69,13 @@ model LineItem {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  categoryRef     Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   allocations     FundingAllocation[]
   actuals         Actual[]
 
   @@unique([qboAccountId])
   @@index([projectId])
+  @@index([categoryId])
   @@map("line_items")
 }
 

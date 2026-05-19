@@ -1,6 +1,16 @@
+'use client'
+
 import Link from 'next/link'
-import { SegmentedBar } from '@/components/SegmentedBar'
-import { FundingChip } from '@/components/FundingChip'
+import {
+  Box,
+  Card,
+  CardActionArea,
+  CardContent,
+  Chip,
+  LinearProgress,
+  Stack,
+  Typography,
+} from '@mui/material'
 
 interface FundingSourceSummary {
   id: string
@@ -21,6 +31,11 @@ interface ProjectCardProps {
   fundingSources: FundingSourceSummary[]
 }
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
+
+const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
+
 export function ProjectCard({
   id,
   name,
@@ -31,53 +46,85 @@ export function ProjectCard({
   lineItemCount,
   fundingSources,
 }: ProjectCardProps) {
-  const barTotal = Math.max(estimated, secured)
-  const securedUnspent = Math.max(0, secured - spent)
+  const spentPct = pct(spent, estimated)
 
   return (
-    <Link
-      href={`/projects/${id}`}
-      className="block bg-white border border-slate-200 rounded-lg p-5 hover:border-blue-300 hover:shadow-sm transition-all"
-    >
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">{name}</h3>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {fundingSources.length} funding source{fundingSources.length !== 1 ? 's' : ''} · {lineItemCount} line item{lineItemCount !== 1 ? 's' : ''}
-          </p>
-        </div>
-        {fundingGap > 0 ? (
-          <span className="text-sm font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full shrink-0 ml-3">
-            ${fundingGap.toLocaleString()} gap
-          </span>
-        ) : (
-          <span className="text-sm font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-full shrink-0 ml-3">
-            ${Math.abs(fundingGap).toLocaleString()} surplus
-          </span>
-        )}
-      </div>
+    <Card elevation={2}>
+      <CardActionArea component={Link} href={`/projects/${id}`}>
+        <CardContent sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" sx={{ mb: 0.25 }}>{name}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                {fundingSources.length} funding source{fundingSources.length !== 1 ? 's' : ''} · {lineItemCount} line item{lineItemCount !== 1 ? 's' : ''}
+              </Typography>
+              {fundingSources.length > 0 && (
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                  {fundingSources.map((fs) => (
+                    <Chip
+                      key={fs.id}
+                      size="small"
+                      label={fs.name}
+                      sx={{
+                        bgcolor: fs.color + '22',
+                        color: fs.color,
+                        border: `1px solid ${fs.color}55`,
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                      }}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Box>
 
-      <SegmentedBar
-        total={barTotal}
-        segments={[
-          { value: spent, color: '#3b82f6', label: 'Spent' },
-          { value: securedUnspent, color: '#16a34a', label: 'Secured unspent' },
-          { value: Math.max(0, fundingGap), color: '#f59e0b', label: 'Funding gap' },
-        ]}
-      />
-
-      {fundingSources.length > 0 && (
-        <div className="hidden sm:flex flex-wrap gap-2 mt-3">
-          {fundingSources.map((fs) => (
-            <FundingChip
-              key={fs.id}
-              color={fs.color}
-              label={fs.name}
-              amount={fs.allocatedTotal}
-            />
-          ))}
-        </div>
-      )}
-    </Link>
+            <Stack spacing={1.5} sx={{ minWidth: 220 }}>
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.25 }}>
+                  <Typography variant="caption" color="text.secondary">Spent vs Budget</Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>{spentPct}%</Typography>
+                </Box>
+                <LinearProgress
+                  variant="determinate"
+                  value={Math.min(spentPct, 100)}
+                  sx={{
+                    height: 6,
+                    borderRadius: 3,
+                    bgcolor: 'grey.200',
+                    '& .MuiLinearProgress-bar': {
+                      borderRadius: 3,
+                      bgcolor: spentPct > 100 ? 'error.main' : spentPct > 80 ? 'warning.main' : 'success.main',
+                    },
+                  }}
+                />
+              </Box>
+              <Stack direction="row" spacing={2}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Budget</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmt(estimated)}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Secured</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmt(secured)}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Spent</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{fmt(spent)}</Typography>
+                </Box>
+              </Stack>
+              {fundingGap > 0 && (
+                <Chip
+                  size="small"
+                  label={`${fmt(fundingGap)} gap`}
+                  color="warning"
+                  variant="outlined"
+                  sx={{ alignSelf: 'flex-start' }}
+                />
+              )}
+            </Stack>
+          </Box>
+        </CardContent>
+      </CardActionArea>
+    </Card>
   )
 }

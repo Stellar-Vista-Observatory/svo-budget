@@ -4,6 +4,7 @@ import { AppShell } from '@/components/layout/AppShell'
 import { SummaryStrip } from '@/components/dashboard/SummaryStrip'
 import { ProjectCard } from '@/components/dashboard/ProjectCard'
 import { useEffect, useState } from 'react'
+import { Alert, Box, CircularProgress, Stack, Typography } from '@mui/material'
 
 interface FundingSourceSummary {
   id: string
@@ -47,30 +48,36 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Dashboard</h1>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>
+        Dashboard
+      </Typography>
 
       {error && (
-        <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-4 text-base mb-6">{error}</div>
+        <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
       )}
 
       {data === null && !error && (
-        <div className="text-slate-500 text-base">Loading…</div>
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+          <CircularProgress />
+        </Box>
       )}
 
       {data && (
-        <div className="space-y-6">
+        <Stack spacing={3}>
           <SummaryStrip {...data.summary} />
 
           {data.projects.length === 0 ? (
-            <p className="text-slate-500 text-base">No projects yet. Sync QBO data from Settings to get started.</p>
+            <Typography color="text.secondary">
+              No projects yet. Sync QBO data from Settings to get started.
+            </Typography>
           ) : (
-            <div className="space-y-4">
+            <Stack spacing={2}>
               {data.projects.map((project) => (
                 <ProjectCard key={project.id} {...project} />
               ))}
-            </div>
+            </Stack>
           )}
-        </div>
+        </Stack>
       )}
     </AppShell>
   )
