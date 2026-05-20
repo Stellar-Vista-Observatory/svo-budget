@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
@@ -10,6 +11,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const body = await request.json() as { name?: string }
   if (!body.name || body.name.trim() === '') {
     return NextResponse.json({ error: 'name is required' }, { status: 400 })

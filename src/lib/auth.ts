@@ -30,3 +30,10 @@ export async function requireAdmin(): Promise<{ error: NextResponse } | null> {
   if (result.role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   return null
 }
+
+export async function requireWriteAccess(): Promise<{ error: NextResponse } | null> {
+  const result = await requireAuth()
+  if ('error' in result) return result
+  if (result.role === 'viewer') return { error: NextResponse.json({ error: 'Viewers cannot modify data' }, { status: 403 }) }
+  return null
+}

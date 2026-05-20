@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fundingSourceSpent, projectFundingGap } from '@/lib/computed'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -139,8 +140,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id } = await params
-  const body = await request.json() as { qboAccountId?: string | null }
+  const body = await request.json() as { name?: string; description?: string; qboAccountId?: string | null }
 
   if (body.qboAccountId) {
     await prisma.project.updateMany({
@@ -149,10 +153,32 @@ export async function PATCH(
     })
   }
 
+  const data: Record<string, unknown> = {}
+  if (body.name !== undefined) data.name = body.name.trim()
+  if (body.description !== undefined) data.description = body.description?.trim() || null
+  if ('qboAccountId' in body) data.qboAccountId = body.qboAccountId ?? null
+
   const updated = await prisma.project.update({
     where: { id },
-    data: { qboAccountId: body.qboAccountId ?? null },
-    select: { id: true, name: true, qboAccountId: true },
+    data,
+    select: { id: true, name: true, description: true, qboAccountId: true },
   })
   return NextResponse.json(updated)
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
+  const { id } = await params
+  try {
+    await prisma.project.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Delete failed'
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
 }

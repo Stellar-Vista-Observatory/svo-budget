@@ -1,11 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { validateBudgetEntryPatch } from '@/lib/line-items'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id } = await params
   try {
     const body = await request.json()
@@ -29,6 +33,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id } = await params
   try {
     await prisma.budgetEntry.delete({ where: { id } })

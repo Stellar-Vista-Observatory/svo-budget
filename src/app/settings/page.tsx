@@ -6,6 +6,7 @@ import {
   Alert,
   Box,
   Button,
+  IconButton,
   MenuItem,
   Paper,
   Select,
@@ -17,8 +18,13 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
+import EditIcon from '@mui/icons-material/Edit'
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
+import CheckIcon from '@mui/icons-material/Check'
+import CloseIcon from '@mui/icons-material/Close'
 
 interface QboStatus {
   connected: boolean
@@ -49,6 +55,8 @@ export default function SettingsPage() {
   const [creatingProject, setCreatingProject] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [projectCreateError, setProjectCreateError] = useState<string | null>(null)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
 
   const loadStatus = useCallback(async () => {
     const res = await fetch('/api/qbo/status')
@@ -98,6 +106,23 @@ export default function SettingsPage() {
       loadAccountsAndProjects()
     }
   }, [status?.connected, loadAccountsAndProjects])
+
+  async function handleRenameProject(id: string) {
+    if (!editingName.trim()) return
+    await fetch(`/api/projects/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editingName.trim() }),
+    })
+    setEditingProjectId(null)
+    await loadAccountsAndProjects()
+  }
+
+  async function handleDeleteProject(id: string, name: string) {
+    if (!confirm(`Delete project "${name}"? This will remove all its categories, budget entries, and actuals.`)) return
+    await fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    await loadAccountsAndProjects()
+  }
 
   async function handleCreateProject() {
     if (!newProjectName.trim()) return
@@ -235,12 +260,39 @@ export default function SettingsPage() {
           </Typography>
 
           {claimedProjects.length > 0 && (
-            <Stack spacing={0.5} sx={{ mb: 2 }}>
+            <Stack spacing={0.75} sx={{ mb: 2 }}>
               {claimedProjects.map((p) => (
-                <Typography key={p.id} variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'grey.400' }} />
-                  {p.name}
-                </Typography>
+                <Stack key={p.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'grey.400', flexShrink: 0 }} />
+                  {editingProjectId === p.id ? (
+                    <>
+                      <TextField
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleRenameProject(p.id); if (e.key === 'Escape') setEditingProjectId(null) }}
+                        size="small"
+                        autoFocus
+                        sx={{ flex: 1, maxWidth: 200 }}
+                      />
+                      <IconButton size="small" onClick={() => handleRenameProject(p.id)}><CheckIcon sx={{ fontSize: 16 }} /></IconButton>
+                      <IconButton size="small" onClick={() => setEditingProjectId(null)}><CloseIcon sx={{ fontSize: 16 }} /></IconButton>
+                    </>
+                  ) : (
+                    <>
+                      <Typography variant="body2" sx={{ flex: 1 }}>{p.name}</Typography>
+                      <Tooltip title="Rename">
+                        <IconButton size="small" onClick={() => { setEditingProjectId(p.id); setEditingName(p.name) }}>
+                          <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete">
+                        <IconButton size="small" onClick={() => handleDeleteProject(p.id, p.name)} sx={{ '&:hover': { color: 'error.main' } }}>
+                          <DeleteOutlinedIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </>
+                  )}
+                </Stack>
               ))}
             </Stack>
           )}

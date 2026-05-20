@@ -1,11 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { validateAllocationAmount } from '@/lib/allocations'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id: budgetEntryId } = await params
   try {
     const body = await request.json() as { fundingSourceId: string; allocatedAmount: number }

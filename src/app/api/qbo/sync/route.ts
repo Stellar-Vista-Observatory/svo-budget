@@ -1,7 +1,10 @@
 import { syncAll } from '@/lib/qbo/sync'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
   try {
     const result = await syncAll()
     return NextResponse.json(result)

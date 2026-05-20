@@ -1,11 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { validateAllocationAmount } from '@/lib/allocations'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id } = await params
   try {
     const body = await request.json() as { allocatedAmount: number }
@@ -25,6 +29,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   const { id } = await params
   try {
     await prisma.fundingAllocation.delete({ where: { id } })
