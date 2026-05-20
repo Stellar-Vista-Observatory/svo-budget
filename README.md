@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SVO Budget
 
-## Getting Started
+Project-based fund accounting for Stellar Vista Observatory. Tracks budgeted costs per project, matches them to funding sources (grants + internal funds), and compares against actual spending pulled from QuickBooks Online.
 
-First, run the development server:
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Next.js 16.2.6 (App Router) |
+| UI | MUI v9 (Material UI) |
+| Database | Supabase (hosted Postgres) |
+| ORM | Prisma 7 |
+| Auth | Supabase Auth (email + Google OAuth) |
+| QBO Integration | QBO OAuth 2.0 + REST API (read-only) |
+| Deployment | Vercel |
+
+## Data Model
+
+**Project** → **Category** (maps to QBO sub-accounts) → **BudgetEntry** (user-created line items) + **Actual** (QBO transactions, read-only)
+
+**FundingSource** (maps to QBO classes, global — not tied to a project) → **FundingAllocation** (links a BudgetEntry to a FundingSource with a dollar amount)
+
+Projects are either `claimed` (linked to a specific QBO account subtree) or `catch_all` (one system-wide project that captures all unclaimed accounts).
+
+## Key Architecture Notes
+
+- Auth is enforced in `src/proxy.ts` (Next.js 16's name for middleware). Unauthenticated API requests get 401; page routes redirect to `/login`.
+- Role-based access: `admin` (full write access) or `viewer` (read-only). Enforced via `src/lib/auth.ts` helpers (`requireWriteAccess`, `requireAdmin`).
+- QBO sync lives in `src/lib/qbo/sync.ts`. It upserts categories from QBO account sub-trees, upserts funding sources from QBO classes, and upserts actuals from Purchase + Bill transactions.
+- All computed financial values (totals, gaps, remaining) are derived at query time — nothing is stored redundantly.
+- MUI v9 has breaking changes: `fontWeight`, `display`, `flexWrap` must be in the `sx` prop, not component props.
+
+## Running Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Requires a `.env.local` with:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SECRET_KEY=
+DATABASE_URL=
+DIRECT_URL=
+QBO_CLIENT_ID=
+QBO_CLIENT_SECRET=
+QBO_REDIRECT_URI=
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Running Tests
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm test
+```
