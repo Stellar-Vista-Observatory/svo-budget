@@ -76,7 +76,7 @@ export function buildDashboardData(projects: Project[]) {
       estimatedCosts: totalEstimated,
       securedFunding: totalSecured,
       spentToDate: totalSpent,
-      remaining: totalSecured - totalSpent,
+      remaining: totalEstimated - totalSpent,
     },
     projects: projectCards,
   }

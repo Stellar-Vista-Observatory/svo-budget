@@ -65,12 +65,20 @@ describe('syncAll — categories', () => {
 
     const result = await syncAll()
 
-    expect(result.categoriesSynced).toBe(2)
-    expect(mockPrisma.category.upsert).toHaveBeenCalledTimes(2)
+    // 1 "General" category for root + 2 direct children = 3
+    expect(result.categoriesSynced).toBe(3)
+    expect(mockPrisma.category.upsert).toHaveBeenCalledTimes(3)
 
-    const firstCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[0][0]
-    expect(firstCall.create.projectId).toBe('proj-1')
-    expect(firstCall.where.qboAccountId).toBe('child-1')
+    // First call is the "General" category for the root account
+    const generalCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[0][0]
+    expect(generalCall.create.projectId).toBe('proj-1')
+    expect(generalCall.where.qboAccountId).toBe('parent-1')
+    expect(generalCall.create.name).toBe('General')
+
+    // Second call is first direct child
+    const childCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[1][0]
+    expect(childCall.create.projectId).toBe('proj-1')
+    expect(childCall.where.qboAccountId).toBe('child-1')
   })
 
   it('puts unclaimed accounts into catch_all project as categories', async () => {

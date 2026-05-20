@@ -112,6 +112,21 @@ async function syncCategories(accounts: QboAccount[]): Promise<number> {
     const subtree = collectSubtree(accounts, project.qboAccountId!)
     subtree.forEach((id) => claimedAccountIds.add(id))
 
+    // Create a "General" category for the project root account itself
+    // so transactions posted directly to the root aren't dropped
+    await prisma.category.upsert({
+      where: { qboAccountId: project.qboAccountId! },
+      update: { name: 'General', qboAccountName: project.qboAccountName ?? 'General', projectId: project.id, sortOrder: 0 },
+      create: {
+        projectId: project.id,
+        name: 'General',
+        qboAccountId: project.qboAccountId!,
+        qboAccountName: project.qboAccountName ?? 'General',
+        sortOrder: 0,
+      },
+    })
+    upsertCount++
+
     // Direct children of the project root become categories
     const directChildren = accounts.filter(
       (a) => a.ParentRef?.value === project.qboAccountId && a.Active
@@ -121,13 +136,13 @@ async function syncCategories(accounts: QboAccount[]): Promise<number> {
       const acct = directChildren[i]
       await prisma.category.upsert({
         where: { qboAccountId: acct.Id },
-        update: { name: acct.Name, qboAccountName: acct.Name, projectId: project.id, sortOrder: i },
+        update: { name: acct.Name, qboAccountName: acct.Name, projectId: project.id, sortOrder: i + 1 },
         create: {
           projectId: project.id,
           name: acct.Name,
           qboAccountId: acct.Id,
           qboAccountName: acct.Name,
-          sortOrder: i,
+          sortOrder: i + 1,
         },
       })
       upsertCount++

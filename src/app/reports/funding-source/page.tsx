@@ -31,21 +31,20 @@ interface ProjectOption {
   name: string
 }
 
-interface AllocationRow {
-  budgetEntryId: string
-  budgetEntryName: string
+interface CategoryRow {
   categoryName: string
-  allocatedAmount: number
+  allocated: number
   spent: number
+  entries: { name: string; allocatedAmount: number }[]
 }
 
-interface FundingSourceReport {
+interface FundingSourceReportData {
   fundingSource: FundingSourceOption
   projectName: string
   totalAllocated: number
   totalSpent: number
   remaining: number
-  allocations: AllocationRow[]
+  categories: CategoryRow[]
 }
 
 const fmt = (n: number) =>
@@ -56,7 +55,7 @@ export default function FundingSourceReport() {
   const [fundingSources, setFundingSources] = useState<FundingSourceOption[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [selectedFsId, setSelectedFsId] = useState('')
-  const [report, setReport] = useState<FundingSourceReport | null>(null)
+  const [report, setReport] = useState<FundingSourceReportData | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -79,34 +78,31 @@ export default function FundingSourceReport() {
       const fs = fundingSources.find((f) => f.id === selectedFsId)
       if (!fs || !project.categories) { setReport(null); setLoading(false); return }
 
-      const allocations: AllocationRow[] = []
+      const categories: CategoryRow[] = []
       let totalAllocated = 0
       let totalSpent = 0
 
       for (const cat of project.categories) {
+        const entries: { name: string; allocatedAmount: number }[] = []
+        let catAllocated = 0
+
         for (const entry of cat.budgetEntries) {
           const alloc = entry.allocations.find((a: { fundingSourceId: string }) => a.fundingSourceId === selectedFsId)
           if (alloc) {
-            const entrySpent = cat.actuals
-              .filter((a: { fundingSourceId: string | null }) => a.fundingSourceId === selectedFsId)
-              .reduce((s: number, a: { amount: number }) => s + a.amount, 0)
-
-            allocations.push({
-              budgetEntryId: entry.id,
-              budgetEntryName: entry.name,
-              categoryName: cat.name,
-              allocatedAmount: alloc.allocatedAmount,
-              spent: entrySpent,
-            })
-            totalAllocated += alloc.allocatedAmount
+            entries.push({ name: entry.name, allocatedAmount: alloc.allocatedAmount })
+            catAllocated += alloc.allocatedAmount
           }
         }
 
-        // Also count spent from this source even if no budget entry allocation
-        const catSpentFromSource = cat.actuals
+        const catSpent = cat.actuals
           .filter((a: { fundingSourceId: string | null }) => a.fundingSourceId === selectedFsId)
           .reduce((s: number, a: { amount: number }) => s + a.amount, 0)
-        totalSpent += catSpentFromSource
+
+        if (catAllocated > 0 || catSpent > 0) {
+          categories.push({ categoryName: cat.name, allocated: catAllocated, spent: catSpent, entries })
+          totalAllocated += catAllocated
+          totalSpent += catSpent
+        }
       }
 
       setReport({
@@ -115,7 +111,7 @@ export default function FundingSourceReport() {
         totalAllocated,
         totalSpent,
         remaining: totalAllocated - totalSpent,
-        allocations,
+        categories,
       })
       setLoading(false)
     })
@@ -195,32 +191,40 @@ export default function FundingSourceReport() {
             </Paper>
 
             {/* Table */}
-            {report.allocations.length > 0 ? (
+            {report.categories.length > 0 ? (
               <TableContainer component={Paper} variant="outlined">
                 <Table size="small">
                   <TableHead>
                     <TableRow sx={{ bgcolor: 'grey.100' }}>
-                      <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-                      <TableCell sx={{ fontWeight: 700 }}>Line Item</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Category / Line Item</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Allocated</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Spent</TableCell>
                       <TableCell align="right" sx={{ fontWeight: 700 }}>Remaining</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {report.allocations.map((row) => (
-                      <TableRow key={row.budgetEntryId}>
-                        <TableCell>{row.categoryName}</TableCell>
-                        <TableCell>{row.budgetEntryName}</TableCell>
-                        <TableCell align="right">{fmt(row.allocatedAmount)}</TableCell>
-                        <TableCell align="right">{fmt(row.spent)}</TableCell>
-                        <TableCell align="right" sx={{ color: row.allocatedAmount - row.spent < 0 ? 'error.main' : 'inherit' }}>
-                          {fmt(row.allocatedAmount - row.spent)}
-                        </TableCell>
-                      </TableRow>
+                    {report.categories.map((cat) => (
+                      <>
+                        <TableRow key={cat.categoryName} sx={{ bgcolor: '#f5f7fa', '& td': { fontWeight: 600 } }}>
+                          <TableCell>{cat.categoryName}</TableCell>
+                          <TableCell align="right">{fmt(cat.allocated)}</TableCell>
+                          <TableCell align="right">{fmt(cat.spent)}</TableCell>
+                          <TableCell align="right" sx={{ color: cat.allocated - cat.spent < 0 ? 'error.main' : 'inherit' }}>
+                            {fmt(cat.allocated - cat.spent)}
+                          </TableCell>
+                        </TableRow>
+                        {cat.entries.map((entry) => (
+                          <TableRow key={`${cat.categoryName}-${entry.name}`}>
+                            <TableCell sx={{ pl: 4 }}>{entry.name}</TableCell>
+                            <TableCell align="right">{fmt(entry.allocatedAmount)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                            <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                          </TableRow>
+                        ))}
+                      </>
                     ))}
                     <TableRow sx={{ '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'primary.main' } }}>
-                      <TableCell colSpan={2}>TOTAL</TableCell>
+                      <TableCell>TOTAL</TableCell>
                       <TableCell align="right">{fmt(report.totalAllocated)}</TableCell>
                       <TableCell align="right">{fmt(report.totalSpent)}</TableCell>
                       <TableCell align="right" sx={{ color: report.remaining < 0 ? 'error.main' : 'inherit' }}>
@@ -232,7 +236,7 @@ export default function FundingSourceReport() {
               </TableContainer>
             ) : (
               <Typography color="text.secondary">
-                No allocations from this funding source in this project.
+                No allocations or spending from this funding source in this project.
               </Typography>
             )}
           </Box>

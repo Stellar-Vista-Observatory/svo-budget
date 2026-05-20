@@ -33,7 +33,7 @@ describe('buildDashboardData', () => {
     expect(result.summary.estimatedCosts).toBe(800)
     expect(result.summary.securedFunding).toBe(500)
     expect(result.summary.spentToDate).toBe(200)
-    expect(result.summary.remaining).toBe(300)
+    expect(result.summary.remaining).toBe(600)
     expect(result.projects).toHaveLength(1)
     expect(result.projects[0].spent).toBe(200)
     expect(result.projects[0].secured).toBe(500)

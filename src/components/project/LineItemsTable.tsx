@@ -24,6 +24,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
 import LockIcon from '@mui/icons-material/Lock'
 import AddIcon from '@mui/icons-material/Add'
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 
 interface AllocationData {
   id: string
@@ -223,6 +224,7 @@ function BudgetSection({
   onPatchEntry,
   onUpdateAllocation,
   onAddEntry,
+  onDeleteEntry,
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
@@ -230,6 +232,7 @@ function BudgetSection({
   onPatchEntry: (id: string, patch: Record<string, unknown>) => void
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
+  onDeleteEntry: (id: string) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [adding, setAdding] = useState(false)
@@ -353,7 +356,17 @@ function BudgetSection({
             </TableCell>
             <TableCell sx={baseCellSx} />
             <TableCell sx={baseCellSx} />
-            <TableCell sx={baseCellSx} />
+            <TableCell sx={{ ...baseCellSx, px: 0.5 }}>
+              <Tooltip title="Delete line item">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onDeleteEntry(entry.id) }}
+                  sx={{ p: 0.3, opacity: 0, color: 'text.secondary', 'tr:hover &': { opacity: 1 }, '&:hover': { color: 'error.main' } }}
+                >
+                  <DeleteOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </TableCell>
           </TableRow>
         )
       })}
@@ -479,6 +492,7 @@ function CategoryRow({
   onPatchEntry,
   onUpdateAllocation,
   onAddEntry,
+  onDeleteEntry,
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
@@ -487,6 +501,7 @@ function CategoryRow({
   onPatchEntry: (id: string, patch: Record<string, unknown>) => void
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
+  onDeleteEntry: (id: string) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
 
@@ -565,6 +580,7 @@ function CategoryRow({
             onPatchEntry={onPatchEntry}
             onUpdateAllocation={onUpdateAllocation}
             onAddEntry={onAddEntry}
+            onDeleteEntry={onDeleteEntry}
           />
           <ActualsSection
             actuals={category.actuals}
@@ -650,6 +666,10 @@ export function LineItemsTable({ categories, fundingSources, onUpdate }: LineIte
     }).then(onUpdate)
   }
 
+  function deleteEntry(id: string) {
+    fetch(`/api/line-items/${id}`, { method: 'DELETE' }).then(onUpdate)
+  }
+
   if (categories.length === 0) {
     return (
       <Typography color="text.secondary">
@@ -719,6 +739,7 @@ export function LineItemsTable({ categories, fundingSources, onUpdate }: LineIte
                 onPatchEntry={patchEntry}
                 onUpdateAllocation={updateAllocation}
                 onAddEntry={addEntry}
+                onDeleteEntry={deleteEntry}
               />
             ))}
             <TotalsRow categories={categories} fundingSources={fundingSources} />

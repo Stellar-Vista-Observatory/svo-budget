@@ -1,7 +1,7 @@
 'use client'
 
 import { AppShell } from '@/components/layout/AppShell'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
   Box,
   Button,
@@ -154,15 +154,26 @@ export default function BudgetVsActualReport() {
                   {report.categories.map((cat) => {
                     const remaining = cat.totalBudget - cat.totalSpent
                     return (
-                      <TableRow key={cat.id} sx={{ bgcolor: '#f5f7fa', '& td': { fontWeight: 600 } }}>
-                        <TableCell>{cat.name}</TableCell>
-                        <TableCell align="right">{fmt(cat.totalBudget)}</TableCell>
-                        <TableCell align="right">{fmt(cat.totalSpent)}</TableCell>
-                        <TableCell align="right" sx={{ color: remaining < 0 ? 'error.main' : 'inherit' }}>
-                          {fmt(remaining)}
-                        </TableCell>
-                        <TableCell align="right">{pct(cat.totalSpent, cat.totalBudget)}</TableCell>
-                      </TableRow>
+                      <Fragment key={cat.id}>
+                        <TableRow sx={{ bgcolor: '#f5f7fa', '& td': { fontWeight: 600 } }}>
+                          <TableCell>{cat.name}</TableCell>
+                          <TableCell align="right">{fmt(cat.totalBudget)}</TableCell>
+                          <TableCell align="right">{fmt(cat.totalSpent)}</TableCell>
+                          <TableCell align="right" sx={{ color: remaining < 0 ? 'error.main' : 'inherit' }}>
+                            {fmt(remaining)}
+                          </TableCell>
+                          <TableCell align="right">{pct(cat.totalSpent, cat.totalBudget)}</TableCell>
+                        </TableRow>
+                        {cat.budgetEntries.map((entry) => (
+                          <TableRow key={entry.id}>
+                            <TableCell sx={{ pl: 4 }}>{entry.name}</TableCell>
+                            <TableCell align="right">{fmt(entry.estimatedAmount)}</TableCell>
+                            <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                            <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                            <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                          </TableRow>
+                        ))}
+                      </Fragment>
                     )
                   })}
                   {/* Totals */}
