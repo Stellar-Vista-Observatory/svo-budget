@@ -555,7 +555,6 @@ function CategoryRow({
   if (signal.count !== lastSignal.current) {
     lastSignal.current = signal.count
     if (signal.action === 'collapse-all') setOpen(false)
-    else if (signal.action === 'summary') setOpen(true)
     else setOpen(true)
   }
 
