@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, Fragment } from 'react'
+import React, { useState, useRef } from 'react'
 import { useToast } from '@/components/ToastProvider'
 import {
   Box,
@@ -16,8 +16,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  ToggleButton,
-  ToggleButtonGroup,
+  ButtonGroup,
   Tooltip,
   Typography,
 } from '@mui/material'
@@ -103,7 +102,7 @@ function sortFundingSources(sources: FundingSourceOption[]): FundingSourceOption
   })
 }
 
-type ViewMode = 'collapsed' | 'summary' | 'expanded'
+type ViewAction = 'collapse-all' | 'expand-all' | 'focus-budget' | 'focus-actuals'
 
 const baseCellSx = {
   fontSize: '0.78rem',
@@ -249,7 +248,7 @@ function AllocationBar({
 function BudgetSection({
   category,
   fundingSources,
-  defaultOpen,
+  signal,
   onPatchEntry,
   onUpdateAllocation,
   onAddEntry,
@@ -257,16 +256,23 @@ function BudgetSection({
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
-  defaultOpen: boolean
+  signal: { count: number; action: ViewAction }
   onPatchEntry: (id: string, patch: Record<string, unknown>) => void
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
   onDeleteEntry: (id: string) => void
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(true)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const addRef = useRef<HTMLInputElement>(null)
+  const lastSignal = useRef(signal.count)
+
+  if (signal.count !== lastSignal.current) {
+    lastSignal.current = signal.count
+    if (signal.action === 'expand-all' || signal.action === 'focus-budget') setOpen(true)
+    else if (signal.action === 'collapse-all' || signal.action === 'focus-actuals') setOpen(false)
+  }
 
   const { budgetEntries } = category
   const totalBudget = budgetEntries.reduce((s, e) => s + e.estimatedAmount, 0)
@@ -431,13 +437,21 @@ function BudgetSection({
 function ActualsSection({
   actuals,
   fundingSources,
-  defaultOpen,
+  signal,
 }: {
   actuals: ActualData[]
   fundingSources: FundingSourceOption[]
-  defaultOpen: boolean
+  signal: { count: number; action: ViewAction }
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(true)
+  const lastSignal = useRef(signal.count)
+
+  if (signal.count !== lastSignal.current) {
+    lastSignal.current = signal.count
+    if (signal.action === 'expand-all' || signal.action === 'focus-actuals') setOpen(true)
+    else if (signal.action === 'collapse-all' || signal.action === 'focus-budget') setOpen(false)
+  }
+
   if (actuals.length === 0) return null
 
   const totalActual = actuals.reduce((s, a) => s + a.amount, 0)
@@ -521,8 +535,7 @@ function ActualsSection({
 function CategoryRow({
   category,
   fundingSources,
-  viewMode,
-  defaultOpen,
+  signal,
   onPatchEntry,
   onUpdateAllocation,
   onAddEntry,
@@ -530,14 +543,20 @@ function CategoryRow({
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
-  viewMode: ViewMode
-  defaultOpen: boolean
+  signal: { count: number; action: ViewAction }
   onPatchEntry: (id: string, patch: Record<string, unknown>) => void
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
   onDeleteEntry: (id: string) => void
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(true)
+  const lastSignal = useRef(signal.count)
+
+  if (signal.count !== lastSignal.current) {
+    lastSignal.current = signal.count
+    if (signal.action === 'collapse-all') setOpen(false)
+    else setOpen(true)
+  }
 
   const { totalBudget, totalSpent, totalAllocated } = category
   const coverageDelta = totalBudget - totalAllocated
@@ -607,11 +626,11 @@ function CategoryRow({
       </TableRow>
 
       {open && (
-        <Fragment key={`${category.id}-${viewMode}`}>
+        <>
           <BudgetSection
             category={category}
             fundingSources={fundingSources}
-            defaultOpen={viewMode === 'expanded'}
+            signal={signal}
             onPatchEntry={onPatchEntry}
             onUpdateAllocation={onUpdateAllocation}
             onAddEntry={onAddEntry}
@@ -620,9 +639,9 @@ function CategoryRow({
           <ActualsSection
             actuals={category.actuals}
             fundingSources={fundingSources}
-            defaultOpen={viewMode === 'expanded'}
+            signal={signal}
           />
-        </Fragment>
+        </>
       )}
     </>
   )
@@ -666,8 +685,12 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
 
 export function LineItemsTable({ categories, fundingSources: rawFundingSources, onUpdate }: LineItemsTableProps) {
   const fundingSources = React.useMemo(() => sortFundingSources(rawFundingSources), [rawFundingSources])
-  const [viewMode, setViewMode] = useState<ViewMode>('expanded')
+  const [signal, setSignal] = useState<{ count: number; action: ViewAction }>({ count: 0, action: 'expand-all' })
   const { toast } = useToast()
+
+  function dispatch(action: ViewAction) {
+    setSignal((s) => ({ count: s.count + 1, action }))
+  }
 
   function handleResponse(res: Response, successMsg: string) {
     if (res.ok) {
@@ -724,17 +747,12 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.75 }}>
-        <ToggleButtonGroup
-          value={viewMode}
-          exclusive
-          onChange={(_, v) => v && setViewMode(v)}
-          size="small"
-          sx={{ '& .MuiToggleButton-root': { px: 1.5, py: 0.4, fontSize: '0.72rem', textTransform: 'none' } }}
-        >
-          <ToggleButton value="collapsed">Collapsed</ToggleButton>
-          <ToggleButton value="summary">Summary</ToggleButton>
-          <ToggleButton value="expanded">Expanded</ToggleButton>
-        </ToggleButtonGroup>
+        <ButtonGroup size="small" variant="outlined">
+          <Button onClick={() => dispatch('collapse-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Collapse All</Button>
+          <Button onClick={() => dispatch('expand-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Expand All</Button>
+          <Button onClick={() => dispatch('focus-budget')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Budget</Button>
+          <Button onClick={() => dispatch('focus-actuals')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Actuals</Button>
+        </ButtonGroup>
       </Box>
 
       <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2, maxHeight: 'calc(100vh - 300px)', overflow: 'auto', width: '100%' }}>
@@ -774,11 +792,10 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
           <TableBody>
             {categories.map((cat) => (
               <CategoryRow
-                key={`${cat.id}-${viewMode}`}
+                key={cat.id}
                 category={cat}
                 fundingSources={fundingSources}
-                viewMode={viewMode}
-                defaultOpen={viewMode !== 'collapsed'}
+                signal={signal}
                 onPatchEntry={patchEntry}
                 onUpdateAllocation={updateAllocation}
                 onAddEntry={addEntry}
