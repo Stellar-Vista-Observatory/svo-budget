@@ -25,6 +25,10 @@ interface QboTransactionLine {
     AccountRef: { value: string; name: string }
     ClassRef?: { value: string; name: string }
   }
+  ItemBasedExpenseLineDetail?: {
+    AccountRef?: { value: string; name: string }
+    ClassRef?: { value: string; name: string }
+  }
 }
 
 interface QboPurchase {
@@ -245,7 +249,7 @@ async function syncTransactions(
     lines: QboTransactionLine[]
   ) {
     for (const line of lines) {
-      const detail = line.AccountBasedExpenseLineDetail
+      const detail = line.AccountBasedExpenseLineDetail ?? line.ItemBasedExpenseLineDetail
       if (!detail?.AccountRef?.value) continue
 
       const categoryId = accountToCategoryMap.get(detail.AccountRef.value)

@@ -84,10 +84,9 @@ const fmt = (n: number) =>
 
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 
-function acronym(name: string): string {
-  const words = name.split(/[\s&/]+/).filter(Boolean)
-  if (words.length === 1) return words[0].slice(0, 4)
-  return words.map((w) => w[0]).join('').toUpperCase()
+function fsLabel(name: string): string {
+  if (/svo\s*funds?/i.test(name)) return 'SVO'
+  return name.replace(/[^A-Z]/g, '')
 }
 
 function fmtDate(iso: string): string {
@@ -110,7 +109,7 @@ const baseCellSx = {
   py: 0.4,
   px: 1,
   borderBottom: '1px solid',
-  borderColor: 'divider',
+  borderColor: '#e8e8e8',
   whiteSpace: 'nowrap' as const,
 }
 
@@ -129,17 +128,26 @@ function EditableCell({
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const [optimistic, setOptimistic] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Clear optimistic value when parent provides updated value
+  if (optimistic !== null && value !== optimistic) setOptimistic(null)
+
+  const displayValue = optimistic ?? value
+
   function start() {
-    setDraft(value)
+    setDraft(displayValue)
     setEditing(true)
     setTimeout(() => inputRef.current?.select(), 0)
   }
 
   function commit() {
     setEditing(false)
-    if (draft !== value) onCommit(draft)
+    if (draft !== displayValue) {
+      setOptimistic(draft)
+      onCommit(draft)
+    }
   }
 
   const extraSx = indent ? { pl: indent } : {}
@@ -189,7 +197,7 @@ function EditableCell({
         },
       }}
     >
-      <Typography sx={{ fontSize: '0.78rem' }}>{value}</Typography>
+      <Typography sx={{ fontSize: '0.78rem' }}>{displayValue}</Typography>
     </TableCell>
   )
 }
@@ -318,7 +326,7 @@ function BudgetSection({
             {fmt(totalAllocated)}
           </Box>
         </TableCell>
-        <TableCell align="right" sx={{ ...subHdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828' }}>
+        <TableCell align="right" sx={{ ...subHdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0' }}>
           {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
         </TableCell>
         <TableCell sx={subHdrSx} />
@@ -372,7 +380,7 @@ function BudgetSection({
             <TableCell align="right" sx={baseCellSx}>
               {entryCoverage === 0
                 ? <Typography sx={{ fontSize: '0.78rem', color: '#2e7d32' }}>—</Typography>
-                : <Typography sx={{ fontSize: '0.78rem', fontWeight: 500, color: entryCoverage > 0 ? '#e65100' : '#c62828' }}>
+                : <Typography sx={{ fontSize: '0.78rem', fontWeight: 500, color: entryCoverage > 0 ? '#e65100' : '#1565c0' }}>
                     {fmt(Math.abs(entryCoverage))}{entryCoverage > 0 ? ' gap' : ' over'}
                   </Typography>
               }
@@ -539,9 +547,10 @@ function CategoryRow({
     fontSize: '0.82rem',
     px: 1,
     bgcolor: '#eef2f7',
-    ...(open
-      ? { borderTop: '2px solid', borderBottom: '2px solid', borderColor: 'primary.light' }
-      : { borderTop: '1px solid', borderBottom: '1px solid', borderColor: 'divider' }),
+    borderTop: '2px solid',
+    borderTopColor: 'primary.light',
+    borderBottom: '1px solid',
+    borderBottomColor: '#ddd',
   }
 
   return (
@@ -564,7 +573,7 @@ function CategoryRow({
           <TableCell key={fs.id} sx={{ ...hdrSx, borderLeft: `2px solid ${fs.color}33` }} />
         ))}
         <TableCell align="right" sx={hdrSx}>{fmt(totalAllocated)}</TableCell>
-        <TableCell align="right" sx={{ ...hdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828', fontSize: '0.78rem' }}>
+        <TableCell align="right" sx={{ ...hdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0', fontSize: '0.78rem' }}>
           {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
         </TableCell>
         <TableCell align="right" sx={hdrSx}>
@@ -638,7 +647,7 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
         <TableCell key={fs.id} sx={{ ...cellSx, borderLeft: `2px solid ${fs.color}44` }} />
       ))}
       <TableCell align="right" sx={cellSx}>{fmt(totalAllocated)}</TableCell>
-      <TableCell align="right" sx={{ ...cellSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#c62828' }}>
+      <TableCell align="right" sx={{ ...cellSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0' }}>
         {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
       </TableCell>
       <TableCell align="right" sx={cellSx}>{fmt(totalActual)}</TableCell>
@@ -738,7 +747,7 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
               {fundingSources.map((fs) => (
                 <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
                   <Tooltip title={fs.name}>
-                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{acronym(fs.name)}</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fsLabel(fs.name)}</Typography>
                   </Tooltip>
                 </TableCell>
               ))}
@@ -746,7 +755,7 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
                 Allocated
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Coverage</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Funding</Typography>
                 <Typography sx={{ fontSize: '0.61rem', color: '#ffffffaa', lineHeight: 1.1 }}>Budget−Alloc</Typography>
               </TableCell>
               <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
