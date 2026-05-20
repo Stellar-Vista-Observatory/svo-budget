@@ -82,8 +82,8 @@ export async function syncAll(): Promise<{ categoriesSynced: number; actualsUpse
   const conn = await getValidConnection()
 
   const [accounts, classes] = await Promise.all([
-    qboQuery<QboAccount>(conn.realmId, conn.accessToken, 'SELECT * FROM Account MAXRESULTS 1000'),
-    qboQuery<QboClass>(conn.realmId, conn.accessToken, 'SELECT * FROM Class MAXRESULTS 1000'),
+    qboQuery<QboAccount>(conn.realmId, conn.accessToken, 'SELECT * FROM Account '),
+    qboQuery<QboClass>(conn.realmId, conn.accessToken, 'SELECT * FROM Class '),
   ])
 
   const categoriesSynced = await syncCategories(accounts)
@@ -211,12 +211,12 @@ async function syncTransactions(
     qboQuery<QboPurchase>(
       conn.realmId,
       conn.accessToken,
-      `SELECT * FROM Purchase WHERE TxnDate >= '${since}' MAXRESULTS 1000`
+      `SELECT * FROM Purchase WHERE MetaData.LastUpdatedTime >= '${since}'`
     ),
     qboQuery<QboBill>(
       conn.realmId,
       conn.accessToken,
-      `SELECT * FROM Bill WHERE TxnDate >= '${since}' MAXRESULTS 1000`
+      `SELECT * FROM Bill WHERE MetaData.LastUpdatedTime >= '${since}'`
     ),
   ])
 

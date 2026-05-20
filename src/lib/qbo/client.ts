@@ -27,20 +27,34 @@ export async function getValidConnection(): Promise<QboConnection> {
   return conn
 }
 
+const PAGE_SIZE = 1000
+
 export async function qboQuery<T>(
   realmId: string,
   accessToken: string,
   sql: string
 ): Promise<T[]> {
-  const url = `${getApiBase()}/${realmId}/query?query=${encodeURIComponent(sql)}&minorversion=70`
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  })
-  if (!res.ok) throw new Error(`QBO query failed: ${res.status}`)
-  const data = await res.json()
   const entityName = sql.match(/FROM\s+(\w+)/i)?.[1] ?? ''
-  return (data.QueryResponse?.[entityName] ?? []) as T[]
+  const results: T[] = []
+  let startPosition = 1
+
+  while (true) {
+    const paginatedSql = `${sql} STARTPOSITION ${startPosition} MAXRESULTS ${PAGE_SIZE}`
+    const url = `${getApiBase()}/${realmId}/query?query=${encodeURIComponent(paginatedSql)}&minorversion=70`
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    })
+    if (!res.ok) throw new Error(`QBO query failed: ${res.status}`)
+    const data = await res.json()
+    const page = (data.QueryResponse?.[entityName] ?? []) as T[]
+    results.push(...page)
+
+    if (page.length < PAGE_SIZE) break
+    startPosition += PAGE_SIZE
+  }
+
+  return results
 }
