@@ -47,6 +47,7 @@ interface ActualData {
   amount: number
   date: string
   vendor: string | null
+  memo: string | null
   qboTransactionType: string
   fundingSourceId: string | null
   fundingSourceName: string | null
@@ -484,12 +485,14 @@ function ActualsSection({
       {open && actuals.map((a) => (
         <TableRow key={a.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#fffde7' } }}>
           <TableCell sx={{ ...baseCellSx, pl: 4 }}>
-            <Typography sx={{ fontSize: '0.78rem' }}>
-              <Box component="span" sx={{ color: 'text.disabled', fontSize: '0.72rem', mr: 0.75 }}>
-                {fmtDate(a.date)}
-              </Box>
-              {a.vendor ?? a.qboTransactionType}
-            </Typography>
+            <Tooltip title={a.memo || ''} disableHoverListener={!a.memo} arrow>
+              <Typography sx={{ fontSize: '0.78rem' }}>
+                <Box component="span" sx={{ color: 'text.disabled', fontSize: '0.72rem', mr: 0.75 }}>
+                  {fmtDate(a.date)}
+                </Box>
+                {a.vendor ?? a.qboTransactionType}
+              </Typography>
+            </Tooltip>
           </TableCell>
           <TableCell sx={baseCellSx} />
           {fundingSources.map((fs) => (

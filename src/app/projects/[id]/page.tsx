@@ -36,6 +36,7 @@ interface ActualData {
   amount: number
   date: string
   vendor: string | null
+  memo: string | null
   qboTransactionType: string
   fundingSourceId: string | null
   fundingSourceName: string | null

@@ -94,6 +94,7 @@ model Actual {
   amount             Decimal       @db.Decimal(12, 2)
   date               DateTime      @db.Date
   vendor             String?
+  memo               String?
   qboTransactionId   String
   qboTransactionType String
   createdAt          DateTime      @default(now())

@@ -115,6 +115,7 @@ export async function GET(
         amount: a.amount.toNumber(),
         date: a.date.toISOString().slice(0, 10),
         vendor: a.vendor,
+        memo: a.memo,
         qboTransactionType: a.qboTransactionType,
         fundingSourceId: a.fundingSourceId,
         fundingSourceName: a.fundingSource?.name ?? null,

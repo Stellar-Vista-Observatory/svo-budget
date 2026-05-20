@@ -20,6 +20,7 @@ interface QboClass {
 interface QboTransactionLine {
   LineNum: number
   Amount: number
+  Description?: string
   DetailType: string
   AccountBasedExpenseLineDetail?: {
     AccountRef: { value: string; name: string }
@@ -34,6 +35,7 @@ interface QboTransactionLine {
 interface QboPurchase {
   Id: string
   TxnDate: string
+  PrivateNote?: string
   EntityRef?: { value: string; name: string }
   Line: QboTransactionLine[]
 }
@@ -41,6 +43,7 @@ interface QboPurchase {
 interface QboBill {
   Id: string
   TxnDate: string
+  PrivateNote?: string
   VendorRef?: { value: string; name: string }
   Line: QboTransactionLine[]
 }
@@ -246,6 +249,7 @@ async function syncTransactions(
     txnType: string,
     txnDate: string,
     vendor: string | undefined,
+    txnMemo: string | undefined,
     lines: QboTransactionLine[]
   ) {
     for (let idx = 0; idx < lines.length; idx++) {
@@ -262,6 +266,8 @@ async function syncTransactions(
 
       const qboTransactionId = `${txnType}-${txnId}-L${idx}`
 
+      const memo = line.Description || txnMemo || null
+
       await prisma.actual.upsert({
         where: {
           qboTransactionId_categoryId: { qboTransactionId, categoryId },
@@ -270,6 +276,7 @@ async function syncTransactions(
           amount: line.Amount,
           date: new Date(txnDate),
           vendor: vendor ?? null,
+          memo,
           fundingSourceId: matchedFsId,
           qboTransactionType: txnType,
         },
@@ -279,6 +286,7 @@ async function syncTransactions(
           amount: line.Amount,
           date: new Date(txnDate),
           vendor: vendor ?? null,
+          memo,
           qboTransactionId,
           qboTransactionType: txnType,
         },
@@ -288,10 +296,10 @@ async function syncTransactions(
   }
 
   for (const txn of purchases) {
-    await processLines(txn.Id, 'Purchase', txn.TxnDate, txn.EntityRef?.name, txn.Line)
+    await processLines(txn.Id, 'Purchase', txn.TxnDate, txn.EntityRef?.name, txn.PrivateNote, txn.Line)
   }
   for (const txn of bills) {
-    await processLines(txn.Id, 'Bill', txn.TxnDate, txn.VendorRef?.name, txn.Line)
+    await processLines(txn.Id, 'Bill', txn.TxnDate, txn.VendorRef?.name, txn.PrivateNote, txn.Line)
   }
 
   return upsertCount
