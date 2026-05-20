@@ -1,13 +1,16 @@
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   const denied = await requireAdmin()
   if (denied) return denied.error
 
-  const supabase = await createClient()
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SECRET_KEY!
+  )
   const { data: { users }, error } = await supabase.auth.admin.listUsers()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
