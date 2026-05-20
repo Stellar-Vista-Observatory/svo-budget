@@ -3,23 +3,26 @@ import { buildDashboardData } from '@/lib/dashboard'
 const dec = (n: number) => ({ toNumber: () => n } as unknown as import('@prisma/client').Prisma.Decimal)
 
 describe('buildDashboardData', () => {
-  it('computes secured from allocations, not fundingSource.allocatedTotal', () => {
+  it('computes secured from allocations', () => {
     const projects = [
       {
         id: 'p1',
         name: 'Observatory',
         projectType: 'claimed',
-        lineItems: [
+        categories: [
           {
-            id: 'li1',
-            estimatedAmount: dec(800),
-            actuals: [{ amount: dec(200), fundingSourceId: 'fs1' }],
-            allocations: [
+            budgetEntries: [
               {
-                allocatedAmount: dec(500),
-                fundingSource: { id: 'fs1', name: 'SVO Funds', color: '#3b82f6' },
+                estimatedAmount: dec(800),
+                allocations: [
+                  {
+                    allocatedAmount: dec(500),
+                    fundingSource: { id: 'fs1', name: 'SVO Funds', color: '#3b82f6' },
+                  },
+                ],
               },
             ],
+            actuals: [{ amount: dec(200), fundingSourceId: 'fs1' }],
           },
         ],
       },
@@ -39,34 +42,35 @@ describe('buildDashboardData', () => {
     expect(result.projects[0].fundingSources[0].allocatedTotal).toBe(500)
   })
 
-  it('deduplicates funding sources that appear on multiple line items', () => {
+  it('deduplicates funding sources across budget entries', () => {
     const projects = [
       {
         id: 'p1',
         name: 'Observatory',
         projectType: 'claimed',
-        lineItems: [
+        categories: [
           {
-            id: 'li1',
-            estimatedAmount: dec(400),
-            actuals: [],
-            allocations: [
+            budgetEntries: [
               {
-                allocatedAmount: dec(200),
-                fundingSource: { id: 'fs1', name: 'Grant A', color: '#3b82f6' },
+                estimatedAmount: dec(400),
+                allocations: [
+                  {
+                    allocatedAmount: dec(200),
+                    fundingSource: { id: 'fs1', name: 'Grant A', color: '#3b82f6' },
+                  },
+                ],
+              },
+              {
+                estimatedAmount: dec(600),
+                allocations: [
+                  {
+                    allocatedAmount: dec(300),
+                    fundingSource: { id: 'fs1', name: 'Grant A', color: '#3b82f6' },
+                  },
+                ],
               },
             ],
-          },
-          {
-            id: 'li2',
-            estimatedAmount: dec(600),
             actuals: [],
-            allocations: [
-              {
-                allocatedAmount: dec(300),
-                fundingSource: { id: 'fs1', name: 'Grant A', color: '#3b82f6' },
-              },
-            ],
           },
         ],
       },

@@ -1,32 +1,32 @@
 import {
-  lineItemSpent,
-  lineItemRemaining,
+  categorySpent,
+  categoryBudget,
   projectSpent,
   projectFundingGap,
   fundingSourceSpent,
-  fundingSourceRemaining,
 } from '@/lib/computed'
 
 const dec = (n: number) => ({ toNumber: () => n } as unknown as import('@prisma/client').Prisma.Decimal)
 
-describe('lineItemSpent', () => {
+describe('categorySpent', () => {
   it('sums actuals amounts', () => {
     const actuals = [{ amount: dec(100) }, { amount: dec(50) }]
-    expect(lineItemSpent(actuals)).toBe(150)
+    expect(categorySpent(actuals)).toBe(150)
   })
 
   it('returns 0 with no actuals', () => {
-    expect(lineItemSpent([])).toBe(0)
+    expect(categorySpent([])).toBe(0)
   })
 })
 
-describe('lineItemRemaining', () => {
-  it('subtracts spent from estimated', () => {
-    expect(lineItemRemaining(dec(500), 200)).toBe(300)
+describe('categoryBudget', () => {
+  it('sums budget entry estimated amounts', () => {
+    const entries = [{ estimatedAmount: dec(300) }, { estimatedAmount: dec(200) }]
+    expect(categoryBudget(entries)).toBe(500)
   })
 
-  it('returns negative when overspent', () => {
-    expect(lineItemRemaining(dec(100), 150)).toBe(-50)
+  it('returns 0 with no entries', () => {
+    expect(categoryBudget([])).toBe(0)
   })
 })
 
@@ -38,12 +38,6 @@ describe('fundingSourceSpent', () => {
       { fundingSourceId: 'fs-1', amount: dec(75) },
     ]
     expect(fundingSourceSpent('fs-1', actuals)).toBe(275)
-  })
-})
-
-describe('fundingSourceRemaining', () => {
-  it('subtracts spent from allocated total', () => {
-    expect(fundingSourceRemaining(dec(1000), 400)).toBe(600)
   })
 })
 
