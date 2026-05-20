@@ -102,7 +102,7 @@ function sortFundingSources(sources: FundingSourceOption[]): FundingSourceOption
   })
 }
 
-type ViewAction = 'collapse-all' | 'expand-all' | 'focus-budget' | 'focus-actuals'
+type ViewAction = 'collapse-all' | 'expand-all' | 'focus-budget' | 'focus-actuals' | 'summary'
 
 const baseCellSx = {
   fontSize: '0.78rem',
@@ -271,7 +271,7 @@ function BudgetSection({
   if (signal.count !== lastSignal.current) {
     lastSignal.current = signal.count
     if (signal.action === 'expand-all' || signal.action === 'focus-budget') setOpen(true)
-    else if (signal.action === 'collapse-all' || signal.action === 'focus-actuals') setOpen(false)
+    else if (signal.action === 'collapse-all' || signal.action === 'focus-actuals' || signal.action === 'summary') setOpen(false)
   }
 
   const { budgetEntries } = category
@@ -449,7 +449,7 @@ function ActualsSection({
   if (signal.count !== lastSignal.current) {
     lastSignal.current = signal.count
     if (signal.action === 'expand-all' || signal.action === 'focus-actuals') setOpen(true)
-    else if (signal.action === 'collapse-all' || signal.action === 'focus-budget') setOpen(false)
+    else if (signal.action === 'collapse-all' || signal.action === 'focus-budget' || signal.action === 'summary') setOpen(false)
   }
 
   if (actuals.length === 0) return null
@@ -555,6 +555,7 @@ function CategoryRow({
   if (signal.count !== lastSignal.current) {
     lastSignal.current = signal.count
     if (signal.action === 'collapse-all') setOpen(false)
+    else if (signal.action === 'summary') setOpen(true)
     else setOpen(true)
   }
 
@@ -749,6 +750,7 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.75 }}>
         <ButtonGroup size="small" variant="outlined">
           <Button onClick={() => dispatch('collapse-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Collapse All</Button>
+          <Button onClick={() => dispatch('summary')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Summary</Button>
           <Button onClick={() => dispatch('expand-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Expand All</Button>
           <Button onClick={() => dispatch('focus-budget')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Budget</Button>
           <Button onClick={() => dispatch('focus-actuals')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Actuals</Button>
