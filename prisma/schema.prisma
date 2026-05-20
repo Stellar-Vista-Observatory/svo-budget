@@ -62,6 +62,7 @@ model BudgetEntry {
   categoryId      String
   name            String
   estimatedAmount Decimal      @db.Decimal(12, 2) @default(0)
+  sortOrder       Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   category        Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)

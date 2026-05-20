@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, Fragment } from 'react'
+import { useToast } from '@/components/ToastProvider'
 import {
   Box,
   Button,
@@ -631,31 +632,35 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
 
 export function LineItemsTable({ categories, fundingSources, onUpdate }: LineItemsTableProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
+  const { toast } = useToast()
+
+  function handleResponse(res: Response, successMsg: string) {
+    if (res.ok) {
+      toast(successMsg)
+      onUpdate()
+    } else {
+      res.json().then((d) => toast(d.error ?? 'Operation failed', 'error')).catch(() => toast('Operation failed', 'error'))
+    }
+  }
 
   function patchEntry(id: string, patch: Record<string, unknown>) {
     fetch(`/api/line-items/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
-    }).then(onUpdate)
+    }).then((r) => handleResponse(r, 'Saved'))
+      .catch(() => toast('Network error', 'error'))
   }
 
   function updateAllocation(entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) {
-    if (amount <= 0 && existingAllocId) {
-      fetch(`/api/funding-allocations/${existingAllocId}`, { method: 'DELETE' }).then(onUpdate)
-    } else if (amount > 0 && existingAllocId) {
-      fetch(`/api/funding-allocations/${existingAllocId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ allocatedAmount: amount }),
-      }).then(onUpdate)
-    } else if (amount > 0 && !existingAllocId) {
-      fetch(`/api/line-items/${entryId}/allocations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fundingSourceId, allocatedAmount: amount }),
-      }).then(onUpdate)
-    }
+    const req = amount <= 0 && existingAllocId
+      ? fetch(`/api/funding-allocations/${existingAllocId}`, { method: 'DELETE' })
+      : amount > 0 && existingAllocId
+        ? fetch(`/api/funding-allocations/${existingAllocId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ allocatedAmount: amount }) })
+        : amount > 0
+          ? fetch(`/api/line-items/${entryId}/allocations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fundingSourceId, allocatedAmount: amount }) })
+          : null
+    if (req) req.then((r) => handleResponse(r, 'Allocation updated')).catch(() => toast('Network error', 'error'))
   }
 
   function addEntry(categoryId: string, name: string) {
@@ -663,11 +668,14 @@ export function LineItemsTable({ categories, fundingSources, onUpdate }: LineIte
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
-    }).then(onUpdate)
+    }).then((r) => handleResponse(r, 'Line item added'))
+      .catch(() => toast('Network error', 'error'))
   }
 
   function deleteEntry(id: string) {
-    fetch(`/api/line-items/${id}`, { method: 'DELETE' }).then(onUpdate)
+    fetch(`/api/line-items/${id}`, { method: 'DELETE' })
+      .then((r) => handleResponse(r, 'Deleted'))
+      .catch(() => toast('Network error', 'error'))
   }
 
   if (categories.length === 0) {

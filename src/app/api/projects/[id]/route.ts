@@ -16,6 +16,7 @@ export async function GET(
         orderBy: { sortOrder: 'asc' },
         include: {
           budgetEntries: {
+            orderBy: { sortOrder: 'asc' },
             include: {
               allocations: {
                 include: {

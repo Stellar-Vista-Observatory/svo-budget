@@ -3,6 +3,7 @@
 import { AppShell } from '@/components/layout/AppShell'
 import { useEffect, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -154,6 +155,14 @@ export default function FundingSourceReport() {
         </Stack>
 
         {loading && <CircularProgress />}
+
+        {!loading && (projects.length === 0 || fundingSources.length === 0) && (
+          <Alert severity="info">
+            {projects.length === 0
+              ? 'No projects yet. Go to Settings to create a project and sync QBO data.'
+              : 'No funding sources yet. Sync QBO data from Settings to import classes as funding sources.'}
+          </Alert>
+        )}
 
         {report && !loading && (
           <Box>

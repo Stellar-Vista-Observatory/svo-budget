@@ -3,6 +3,7 @@
 import { AppShell } from '@/components/layout/AppShell'
 import { Fragment, useEffect, useState } from 'react'
 import {
+  Alert,
   Box,
   Button,
   CircularProgress,
@@ -103,7 +104,15 @@ export default function BudgetVsActualReport() {
 
         {loading && <CircularProgress />}
 
-        {report && !loading && (
+        {!loading && projects.length === 0 && (
+          <Alert severity="info">No projects yet. Go to Settings to create a project and sync QBO data.</Alert>
+        )}
+
+        {report && !loading && report.categories.length === 0 && (
+          <Alert severity="info">No budget data for this project. Sync QBO data from Settings, then add budget entries.</Alert>
+        )}
+
+        {report && !loading && report.categories.length > 0 && (
           <Box>
             {/* Print header */}
             <Box sx={{ display: 'none', '@media print': { display: 'block', mb: 2 } }}>
