@@ -84,6 +84,25 @@ const fmt = (n: number) =>
 
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
 
+function acronym(name: string): string {
+  const words = name.split(/[\s&/]+/).filter(Boolean)
+  if (words.length === 1) return words[0].slice(0, 4)
+  return words.map((w) => w[0]).join('').toUpperCase()
+}
+
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split('-')
+  return `${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`
+}
+
+function sortFundingSources(sources: FundingSourceOption[]): FundingSourceOption[] {
+  return [...sources].sort((a, b) => {
+    const aOwn = /own\s*funds?|svo\s*funds?/i.test(a.name) ? 1 : 0
+    const bOwn = /own\s*funds?|svo\s*funds?/i.test(b.name) ? 1 : 0
+    return aOwn - bOwn
+  })
+}
+
 type ViewMode = 'collapsed' | 'summary' | 'expanded'
 
 const baseCellSx = {
@@ -319,9 +338,12 @@ function BudgetSection({
 
         return (
           <TableRow key={entry.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#eef6ff' } }}>
-            <TableCell sx={{ ...baseCellSx, pl: 4 }}>
-              <Typography sx={{ fontSize: '0.78rem' }}>{entry.name}</Typography>
-            </TableCell>
+            <EditableCell
+              value={entry.name}
+              align="left"
+              onCommit={(v) => { if (v.trim() && v.trim() !== entry.name) onPatchEntry(entry.id, { name: v.trim() }) }}
+              indent={4}
+            />
             <EditableCell
               value={fmt(entry.estimatedAmount)}
               align="right"
@@ -456,7 +478,7 @@ function ActualsSection({
           <TableCell sx={{ ...baseCellSx, pl: 4 }}>
             <Typography sx={{ fontSize: '0.78rem' }}>
               <Box component="span" sx={{ color: 'text.disabled', fontSize: '0.72rem', mr: 0.75 }}>
-                {a.date}
+                {fmtDate(a.date)}
               </Box>
               {a.vendor ?? a.qboTransactionType}
             </Typography>
@@ -630,7 +652,8 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
 
 // ── Main Table ────────────────────────────────────────────────────────────────
 
-export function LineItemsTable({ categories, fundingSources, onUpdate }: LineItemsTableProps) {
+export function LineItemsTable({ categories, fundingSources: rawFundingSources, onUpdate }: LineItemsTableProps) {
+  const fundingSources = React.useMemo(() => sortFundingSources(rawFundingSources), [rawFundingSources])
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const { toast } = useToast()
 
@@ -715,7 +738,7 @@ export function LineItemsTable({ categories, fundingSources, onUpdate }: LineIte
               {fundingSources.map((fs) => (
                 <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
                   <Tooltip title={fs.name}>
-                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fs.name.length > 10 ? fs.name.slice(0, 10) + '…' : fs.name}</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{acronym(fs.name)}</Typography>
                   </Tooltip>
                 </TableCell>
               ))}
