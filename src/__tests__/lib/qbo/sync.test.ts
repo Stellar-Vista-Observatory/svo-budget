@@ -160,7 +160,7 @@ describe('syncAll — transactions', () => {
     expect(upsertCall.create.vendor).toBe('Home Depot')
     expect(upsertCall.create.amount).toBe(500)
     expect(upsertCall.create.fundingSourceId).toBe('fs-1')
-    expect(upsertCall.create.qboTransactionId).toBe('Purchase-txn-1-1')
+    expect(upsertCall.create.qboTransactionId).toBe('Purchase-txn-1-L0')
   })
 
   it('maps deep sub-account transactions to their ancestor category', async () => {

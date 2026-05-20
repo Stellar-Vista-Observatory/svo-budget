@@ -248,7 +248,8 @@ async function syncTransactions(
     vendor: string | undefined,
     lines: QboTransactionLine[]
   ) {
-    for (const line of lines) {
+    for (let idx = 0; idx < lines.length; idx++) {
+      const line = lines[idx]
       const detail = line.AccountBasedExpenseLineDetail ?? line.ItemBasedExpenseLineDetail
       if (!detail?.AccountRef?.value) continue
 
@@ -259,7 +260,7 @@ async function syncTransactions(
       const fundingSource = classId ? fundingSourceByClass.get(classId) : undefined
       const matchedFsId = fundingSource ? fundingSource.id : null
 
-      const qboTransactionId = `${txnType}-${txnId}-${line.LineNum}`
+      const qboTransactionId = `${txnType}-${txnId}-L${idx}`
 
       await prisma.actual.upsert({
         where: {
