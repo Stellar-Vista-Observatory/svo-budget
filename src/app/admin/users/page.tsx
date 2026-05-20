@@ -2,6 +2,20 @@
 
 import { AppShell } from '@/components/layout/AppShell'
 import { useEffect, useState } from 'react'
+import {
+  Alert,
+  CircularProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material'
 
 interface UserRow {
   id: string
@@ -38,40 +52,41 @@ export default function AdminUsersPage() {
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">User Management</h1>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>User Management</Typography>
 
-      {error && <div className="bg-red-50 text-red-700 border border-red-200 rounded-md p-4 text-base mb-6">{error}</div>}
-      {loading && <p className="text-slate-500 text-base">Loading…</p>}
+      {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+      {loading && <CircularProgress />}
 
       {!loading && !error && (
-        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden max-w-2xl">
-          <table className="w-full text-base">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left font-medium text-slate-600 px-4 py-3">Email</th>
-                <th className="text-left font-medium text-slate-600 px-4 py-3">Role</th>
-              </tr>
-            </thead>
-            <tbody>
+        <TableContainer component={Paper} variant="outlined" sx={{ maxWidth: 600 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>Role</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {users.map((user) => (
-                <tr key={user.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3 text-slate-900">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <select
+                <TableRow key={user.id}>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Select
                       value={user.role}
                       onChange={(e) => handleRoleChange(user.id, e.target.value as 'admin' | 'viewer')}
                       disabled={updating === user.id}
-                      className="text-base border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-900 disabled:opacity-50"
+                      size="small"
+                      sx={{ minWidth: 120 }}
                     >
-                      <option value="viewer">Viewer</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </td>
-                </tr>
+                      <MenuItem value="viewer">Viewer</MenuItem>
+                      <MenuItem value="admin">Admin</MenuItem>
+                    </Select>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </AppShell>
   )

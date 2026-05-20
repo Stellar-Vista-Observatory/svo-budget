@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { Alert, Box, Button, Divider, Paper, TextField, Typography } from '@mui/material'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -39,68 +40,48 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-lg p-8 w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">SVO Budget</h1>
-        <p className="text-slate-500 text-base mb-8">Sign in to continue</p>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
+      <Paper elevation={1} sx={{ p: 4, width: '100%', maxWidth: 380 }}>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 0.5 }}>SVO Budget</Typography>
+        <Typography color="text.secondary" sx={{ mb: 4 }}>Sign in to continue</Typography>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-md p-3 mb-6 text-base">
-            {error}
-          </div>
-        )}
+        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
-        <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
-          <div>
-            <label className="block text-base font-medium text-slate-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-base font-medium text-slate-700 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white rounded-md py-2 text-base font-medium hover:bg-blue-700 disabled:opacity-50"
-          >
+        <Box component="form" onSubmit={handleEmailLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+          <TextField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            size="small"
+            fullWidth
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            size="small"
+            fullWidth
+          />
+          <Button type="submit" variant="contained" disabled={loading} fullWidth>
             {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+          </Button>
+        </Box>
 
-        <div className="relative mb-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-200" />
-          </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="bg-white px-2 text-slate-400">or</span>
-          </div>
-        </div>
+        <Divider sx={{ mb: 3 }}>or</Divider>
 
-        <button
+        <Button
+          variant="outlined"
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full border border-slate-300 text-slate-700 rounded-md py-2 text-base font-medium hover:bg-slate-50 disabled:opacity-50"
+          fullWidth
         >
           Sign in with Google
-        </button>
-      </div>
-    </div>
+        </Button>
+      </Paper>
+    </Box>
   )
 }

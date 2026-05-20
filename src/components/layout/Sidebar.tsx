@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
+import { Box, IconButton, List, ListItemButton, ListItemText, Typography } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 
 const baseNavItems = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -30,7 +32,7 @@ export function Sidebar({ onClose }: SidebarProps) {
         setRole(data.role)
       }
     } catch {
-      // degrade gracefully — base nav items shown
+      // degrade gracefully
     }
   }, [])
 
@@ -41,31 +43,37 @@ export function Sidebar({ onClose }: SidebarProps) {
     : baseNavItems
 
   return (
-    <aside className="w-56 bg-white border-r border-slate-200 flex flex-col h-full min-h-screen">
-      <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-        <span className="text-lg font-bold text-slate-900">SVO Budget</span>
+    <Box sx={{ width: 220, bgcolor: 'background.paper', borderRight: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', height: '100%', minHeight: '100vh' }}>
+      <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography sx={{ fontSize: '1.1rem', fontWeight: 700 }}>SVO Budget</Typography>
         {onClose && (
-          <button onClick={onClose} className="md:hidden text-slate-400 hover:text-slate-700 text-xl" aria-label="Close menu">
-            ✕
-          </button>
+          <IconButton onClick={onClose} size="small" sx={{ display: { md: 'none' } }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
         )}
-      </div>
-      <nav className="flex-1 p-3 space-y-1">
-        {navItems.map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => onClose?.()}
-            className={`flex items-center px-3 py-2.5 rounded-md text-base font-medium transition-colors ${
-              pathname.startsWith(item.href)
-                ? 'bg-blue-50 text-blue-700'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-    </aside>
+      </Box>
+      <List sx={{ flex: 1, px: 1, py: 1.5 }}>
+        {navItems.map((item) => {
+          const active = pathname.startsWith(item.href)
+          return (
+            <ListItemButton
+              key={item.href}
+              component={Link}
+              href={item.href}
+              onClick={() => onClose?.()}
+              selected={active}
+              sx={{
+                borderRadius: 1,
+                mb: 0.5,
+                '&.Mui-selected': { bgcolor: 'primary.50', color: 'primary.main' },
+                '&.Mui-selected:hover': { bgcolor: 'primary.100' },
+              }}
+            >
+              <ListItemText primary={item.label} slotProps={{ primary: { sx: { fontWeight: active ? 600 : 400 } } }} />
+            </ListItemButton>
+          )
+        })}
+      </List>
+    </Box>
   )
 }

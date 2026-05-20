@@ -2,6 +2,23 @@
 
 import { AppShell } from '@/components/layout/AppShell'
 import { useEffect, useState, useCallback } from 'react'
+import {
+  Alert,
+  Box,
+  Button,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material'
 
 interface QboStatus {
   connected: boolean
@@ -153,163 +170,150 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Settings</h1>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 3 }}>Settings</Typography>
 
-      <div className="max-w-2xl space-y-8">
+      <Stack spacing={4} sx={{ maxWidth: 700 }}>
         {/* Connection Section */}
-        <section className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">QuickBooks Online</h2>
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>QuickBooks Online</Typography>
 
           {status === null ? (
-            <p className="text-slate-500 text-base">Loading…</p>
+            <Typography color="text.secondary">Loading…</Typography>
           ) : status.connected && status.connection ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />
-                <span className="text-base font-medium text-slate-900">
-                  {status.connection.companyName}
-                </span>
-              </div>
+            <Stack spacing={2}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: 'success.main' }} />
+                <Typography sx={{ fontWeight: 500 }}>{status.connection.companyName}</Typography>
+              </Stack>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-base font-medium rounded-md transition-colors"
-                >
+              <Stack direction="row" spacing={1.5}>
+                <Button variant="contained" onClick={handleSync} disabled={syncing}>
                   {syncing ? 'Syncing…' : '↻ Sync Now'}
-                </button>
-                <button
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                  className="px-4 py-2 border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-base font-medium rounded-md transition-colors"
-                >
+                </Button>
+                <Button variant="outlined" onClick={handleDisconnect} disabled={disconnecting}>
                   {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-                </button>
-              </div>
+                </Button>
+              </Stack>
 
               {status.connection.lastSyncedAt && (
-                <p className="text-base text-slate-500">
-                  Last synced:{' '}
-                  {new Date(status.connection.lastSyncedAt).toLocaleString()}
-                </p>
+                <Typography variant="body2" color="text.secondary">
+                  Last synced: {new Date(status.connection.lastSyncedAt).toLocaleString()}
+                </Typography>
               )}
               {!status.connection.lastSyncedAt && (
-                <p className="text-base text-slate-500">Never synced — click Sync Now to import data.</p>
+                <Typography variant="body2" color="text.secondary">
+                  Never synced — click Sync Now to import data.
+                </Typography>
               )}
 
               {syncResult && (
-                <p className={`text-base p-3 rounded-md ${syncResult.includes('failed') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                <Alert severity={syncResult.includes('failed') ? 'error' : 'success'}>
                   {syncResult}
-                </p>
+                </Alert>
               )}
-            </div>
+            </Stack>
           ) : (
-            <div className="space-y-3">
-              <p className="text-base text-slate-600">
+            <Stack spacing={2}>
+              <Typography variant="body2" color="text.secondary">
                 Connect your QuickBooks Online account to sync your chart of accounts and transactions.
-              </p>
-              <a
-                href="/api/qbo/connect"
-                className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-medium rounded-md transition-colors"
-              >
-                Connect to QuickBooks
-              </a>
-              {syncResult && (
-                <p className="text-base p-3 rounded-md bg-red-50 text-red-700">{syncResult}</p>
-              )}
-            </div>
+              </Typography>
+              <Box>
+                <Button variant="contained" href="/api/qbo/connect">
+                  Connect to QuickBooks
+                </Button>
+              </Box>
+              {syncResult && <Alert severity="error">{syncResult}</Alert>}
+            </Stack>
           )}
-        </section>
+        </Paper>
 
         {/* Projects Section */}
-        <section className="bg-white border border-slate-200 rounded-lg p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">Projects</h2>
-          <p className="text-base text-slate-600 mb-4">
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>Projects</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Projects organize your budget. Each project can claim a QBO account to track its spending.
-          </p>
+          </Typography>
 
-          {/* Existing projects list */}
-          {projects.filter(p => p.projectType === 'claimed').length > 0 && (
-            <ul className="mb-4 space-y-1">
-              {projects.filter(p => p.projectType === 'claimed').map(p => (
-                <li key={p.id} className="text-base text-slate-900 flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+          {claimedProjects.length > 0 && (
+            <Stack spacing={0.5} sx={{ mb: 2 }}>
+              {claimedProjects.map((p) => (
+                <Typography key={p.id} variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'grey.400' }} />
                   {p.name}
-                </li>
+                </Typography>
               ))}
-            </ul>
+            </Stack>
           )}
 
-          {/* Create form */}
-          <div className="flex gap-2 items-center">
-            <input
-              type="text"
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <TextField
               placeholder="Project name"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCreateProject() }}
               disabled={creatingProject}
-              className="flex-1 max-w-xs border border-slate-300 rounded-md px-3 py-1.5 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              size="small"
+              sx={{ maxWidth: 250 }}
             />
-            <button
+            <Button
+              variant="contained"
               onClick={handleCreateProject}
               disabled={creatingProject || !newProjectName.trim()}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-base font-medium rounded-md transition-colors"
             >
               {creatingProject ? 'Creating…' : 'Create'}
-            </button>
-          </div>
+            </Button>
+          </Stack>
           {projectCreateError && (
-            <p className="text-base text-red-600 mt-2">{projectCreateError}</p>
+            <Alert severity="error" sx={{ mt: 1 }}>{projectCreateError}</Alert>
           )}
-        </section>
+        </Paper>
 
         {/* Account Claims Section */}
         {status?.connected && accounts.length > 0 && (
-          <section className="bg-white border border-slate-200 rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-2">Project Account Claims</h2>
-            <p className="text-base text-slate-600 mb-4">
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>Project Account Claims</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Assign each top-level QBO account to a project. Unassigned accounts go into the catch-all project.
-            </p>
+            </Typography>
 
-            <table className="w-full text-base">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left font-medium text-slate-600 pb-2">QBO Account</th>
-                  <th className="text-left font-medium text-slate-600 pb-2">Claimed By</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.map((account) => {
-                  const currentProjectId =
-                    projects.find((p) => p.qboAccountId === account.id)?.id ?? ''
-                  return (
-                    <tr key={account.id} className="border-b border-slate-100 last:border-0">
-                      <td className="py-3 pr-4 text-slate-900">{account.name}</td>
-                      <td className="py-3">
-                        <select
-                          value={currentProjectId}
-                          onChange={(e) => handleClaimChange(account.id, e.target.value)}
-                          disabled={claimingAccount === account.id}
-                          className="text-base border border-slate-300 rounded-md px-3 py-1.5 bg-white text-slate-900 disabled:opacity-50"
-                        >
-                          <option value="">— None (catch-all) —</option>
-                          {claimedProjects.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </section>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 600 }}>QBO Account</TableCell>
+                    <TableCell sx={{ fontWeight: 600 }}>Claimed By</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {accounts.map((account) => {
+                    const currentProjectId = projects.find((p) => p.qboAccountId === account.id)?.id ?? ''
+                    return (
+                      <TableRow key={account.id}>
+                        <TableCell>{account.name}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={currentProjectId}
+                            onChange={(e) => handleClaimChange(account.id, e.target.value)}
+                            disabled={claimingAccount === account.id}
+                            size="small"
+                            displayEmpty
+                            sx={{ minWidth: 180 }}
+                          >
+                            <MenuItem value="">— None (catch-all) —</MenuItem>
+                            {claimedProjects.map((p) => (
+                              <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>
+                            ))}
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
         )}
-      </div>
+      </Stack>
     </AppShell>
   )
 }
