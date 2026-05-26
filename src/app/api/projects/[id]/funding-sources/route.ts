@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
 const COLOR_PALETTE = ['#3b82f6','#16a34a','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316']
@@ -7,6 +8,9 @@ export async function POST(
   request: NextRequest,
   _ctx: { params: Promise<{ id: string }> }
 ) {
+  const roleCheck = await requireWriteAccess()
+  if (roleCheck) return roleCheck.error
+
   try {
     const body = await request.json() as {
       name: string

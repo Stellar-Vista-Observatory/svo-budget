@@ -1,5 +1,6 @@
 import { getValidConnection, qboQuery } from '@/lib/qbo/client'
 import { prisma } from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 interface QboAccount {
@@ -12,6 +13,9 @@ interface QboAccount {
 }
 
 export async function GET() {
+  const auth = await requireAuth()
+  if ('error' in auth) return auth.error
+
   try {
     const conn = await getValidConnection()
     const accounts = await qboQuery<QboAccount>(
