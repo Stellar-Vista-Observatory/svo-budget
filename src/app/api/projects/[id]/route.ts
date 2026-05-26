@@ -146,6 +146,13 @@ export async function PATCH(
   if (roleCheck) return roleCheck.error
 
   const { id } = await params
+
+  const existing = await prisma.project.findUnique({ where: { id }, select: { projectType: true } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (existing.projectType === 'catch_all') {
+    return NextResponse.json({ error: 'The default project cannot be modified or deleted.' }, { status: 403 })
+  }
+
   const body = await request.json() as { name?: string; description?: string; qboAccountId?: string | null }
 
   if (body.qboAccountId) {
@@ -176,6 +183,13 @@ export async function DELETE(
   if (roleCheck) return roleCheck.error
 
   const { id } = await params
+
+  const existing = await prisma.project.findUnique({ where: { id }, select: { projectType: true } })
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (existing.projectType === 'catch_all') {
+    return NextResponse.json({ error: 'The default project cannot be modified or deleted.' }, { status: 403 })
+  }
+
   try {
     await prisma.project.delete({ where: { id } })
     return NextResponse.json({ ok: true })
