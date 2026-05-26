@@ -262,14 +262,15 @@ function BudgetSection({
   onAddEntry: (categoryId: string, name: string) => void
   onDeleteEntry: (id: string) => void
 }) {
-  const [open, setOpen] = useState(true)
+  const budgetInitialOpen = signal.action !== 'collapse-all' && signal.action !== 'focus-actuals' && signal.action !== 'summary'
+  const [open, setOpen] = useState(budgetInitialOpen)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const addRef = useRef<HTMLInputElement>(null)
-  const lastSignal = useRef(signal.count)
+  const [seenSignal, setSeenSignal] = useState(signal.count)
 
-  if (signal.count !== lastSignal.current) {
-    lastSignal.current = signal.count
+  if (signal.count !== seenSignal) {
+    setSeenSignal(signal.count)
     if (signal.action === 'expand-all' || signal.action === 'focus-budget') setOpen(true)
     else if (signal.action === 'collapse-all' || signal.action === 'focus-actuals' || signal.action === 'summary') setOpen(false)
   }
@@ -443,11 +444,12 @@ function ActualsSection({
   fundingSources: FundingSourceOption[]
   signal: { count: number; action: ViewAction }
 }) {
-  const [open, setOpen] = useState(true)
-  const lastSignal = useRef(signal.count)
+  const actualsInitialOpen = signal.action !== 'collapse-all' && signal.action !== 'focus-budget' && signal.action !== 'summary'
+  const [open, setOpen] = useState(actualsInitialOpen)
+  const [seenSignal, setSeenSignal] = useState(signal.count)
 
-  if (signal.count !== lastSignal.current) {
-    lastSignal.current = signal.count
+  if (signal.count !== seenSignal) {
+    setSeenSignal(signal.count)
     if (signal.action === 'expand-all' || signal.action === 'focus-actuals') setOpen(true)
     else if (signal.action === 'collapse-all' || signal.action === 'focus-budget' || signal.action === 'summary') setOpen(false)
   }
@@ -550,10 +552,10 @@ function CategoryRow({
   onDeleteEntry: (id: string) => void
 }) {
   const [open, setOpen] = useState(true)
-  const lastSignal = useRef(signal.count)
+  const [seenSignal, setSeenSignal] = useState(signal.count)
 
-  if (signal.count !== lastSignal.current) {
-    lastSignal.current = signal.count
+  if (signal.count !== seenSignal) {
+    setSeenSignal(signal.count)
     if (signal.action === 'collapse-all') setOpen(false)
     else setOpen(true)
   }
@@ -569,8 +571,8 @@ function CategoryRow({
     fontSize: '0.82rem',
     px: 1,
     bgcolor: '#eef2f7',
-    borderTop: '2px solid',
-    borderTopColor: 'primary.light',
+    borderTop: '1px solid',
+    borderTopColor: '#ddd',
     borderBottom: '1px solid',
     borderBottomColor: '#ddd',
   }
