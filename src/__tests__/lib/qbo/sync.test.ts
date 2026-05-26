@@ -39,6 +39,9 @@ beforeEach(() => {
   mockGetValidConnection.mockResolvedValue(fakeConn)
   ;(mockPrisma.qboConnection.update as jest.Mock).mockResolvedValue(fakeConn)
   ;(mockPrisma.fundingSource.upsert as jest.Mock).mockResolvedValue({})
+  ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+    id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+  })
 })
 
 describe('syncAll — categories', () => {
