@@ -239,7 +239,8 @@ describe('getOrCreateCatchAllProject', () => {
     expect(mockPrisma.project.create).toHaveBeenCalledWith({
       data: { name: 'All Other Expenses', projectType: 'catch_all' },
     })
-    expect(result.id).toBe('new-catch-all')
+    expect(result.project!.id).toBe('new-catch-all')
+    expect(result.created).toBe(true)
   })
 
   it('returns existing catch_all project without creating a new one', async () => {
@@ -257,6 +258,36 @@ describe('getOrCreateCatchAllProject', () => {
       where: { projectType: 'catch_all' },
     })
     expect(mockPrisma.project.create).not.toHaveBeenCalled()
-    expect(result.id).toBe('existing-catch-all')
+    expect(result.project!.id).toBe('existing-catch-all')
+    expect(result.created).toBe(false)
+  })
+})
+
+describe('syncAll — catch-all first-time sync', () => {
+  it('fetches full transaction history when catch-all project is newly created', async () => {
+    const connWithLastSynced = {
+      ...fakeConn,
+      lastSyncedAt: new Date('2025-01-01'),
+    }
+    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+
+    // Simulate catch-all not existing yet — first sync
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.project.create as jest.Mock).mockResolvedValue({
+      id: 'new-catch-all', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+    mockQboQuery.mockResolvedValue([])
+
+    await syncAll()
+
+    // The transaction queries (3rd and 4th qboQuery calls) must use '2020-01-01',
+    // not '2025-01-01', so that pre-existing transactions are picked up
+    const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
+    expect(purchaseQuery).toContain('2020-01-01')
+    expect(purchaseQuery).not.toContain('2025-01-01')
   })
 })
