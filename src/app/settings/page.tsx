@@ -6,6 +6,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   IconButton,
   MenuItem,
   Paper,
@@ -259,12 +260,17 @@ export default function SettingsPage() {
             Projects organize your budget. Each project can claim a QBO account to track its spending.
           </Typography>
 
-          {claimedProjects.length > 0 && (
+          {projects.length > 0 && (
             <Stack spacing={0.75} sx={{ mb: 2 }}>
-              {claimedProjects.map((p) => (
+              {projects.map((p) => (
                 <Stack key={p.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'grey.400', flexShrink: 0 }} />
-                  {editingProjectId === p.id ? (
+                  {p.projectType === 'catch_all' ? (
+                    <>
+                      <Typography variant="body2" sx={{ flex: 1 }}>{p.name}</Typography>
+                      <Chip label="Default" size="small" variant="outlined" sx={{ fontSize: 10, height: 18 }} />
+                    </>
+                  ) : editingProjectId === p.id ? (
                     <>
                       <TextField
                         value={editingName}
