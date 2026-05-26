@@ -59,6 +59,9 @@ describe('syncAll — categories', () => {
     ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
       { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
     ])
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
@@ -93,9 +96,10 @@ describe('syncAll — categories', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
 
-    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
-      { id: 'catch-1', projectType: 'catch_all', qboAccountId: null },
-    ])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
@@ -143,6 +147,9 @@ describe('syncAll — transactions', () => {
     ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
       { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
     ])
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
       { id: 'cat-1', qboAccountId: 'child-1' },
     ])
@@ -193,6 +200,9 @@ describe('syncAll — transactions', () => {
     ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
       { id: 'proj-1', projectType: 'claimed', qboAccountId: 'root' },
     ])
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
       { id: 'cat-1', qboAccountId: 'cat-acct' },
     ])

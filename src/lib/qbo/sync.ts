@@ -114,11 +114,13 @@ export async function getOrCreateCatchAllProject() {
 }
 
 async function syncCategories(accounts: QboAccount[]): Promise<number> {
-  const projects = await prisma.project.findMany()
+  const [projects, catchAllProject] = await Promise.all([
+    prisma.project.findMany(),
+    getOrCreateCatchAllProject(),
+  ])
   const claimedProjects = projects.filter(
     (p) => p.projectType === 'claimed' && p.qboAccountId
   )
-  const catchAllProject = projects.find((p) => p.projectType === 'catch_all')
 
   const claimedAccountIds = new Set<string>()
   let upsertCount = 0
@@ -165,23 +167,21 @@ async function syncCategories(accounts: QboAccount[]): Promise<number> {
   }
 
   // Catch-all: every unclaimed active account becomes its own category (flattened)
-  if (catchAllProject) {
-    const unclaimed = accounts.filter((a) => !claimedAccountIds.has(a.Id) && a.Active)
-    for (let i = 0; i < unclaimed.length; i++) {
-      const acct = unclaimed[i]
-      await prisma.category.upsert({
-        where: { qboAccountId: acct.Id },
-        update: { name: acct.Name, qboAccountName: acct.Name, projectId: catchAllProject.id },
-        create: {
-          projectId: catchAllProject.id,
-          name: acct.Name,
-          qboAccountId: acct.Id,
-          qboAccountName: acct.Name,
-          sortOrder: i,
-        },
-      })
-      upsertCount++
-    }
+  const unclaimed = accounts.filter((a) => !claimedAccountIds.has(a.Id) && a.Active)
+  for (let i = 0; i < unclaimed.length; i++) {
+    const acct = unclaimed[i]
+    await prisma.category.upsert({
+      where: { qboAccountId: acct.Id },
+      update: { name: acct.Name, qboAccountName: acct.Name, projectId: catchAllProject.id },
+      create: {
+        projectId: catchAllProject.id,
+        name: acct.Name,
+        qboAccountId: acct.Id,
+        qboAccountName: acct.Name,
+        sortOrder: i,
+      },
+    })
+    upsertCount++
   }
 
   return upsertCount
