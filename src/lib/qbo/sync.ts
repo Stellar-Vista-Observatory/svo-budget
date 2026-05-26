@@ -105,6 +105,14 @@ export async function syncAll(): Promise<{ categoriesSynced: number; actualsUpse
   return { categoriesSynced, actualsUpserted }
 }
 
+export async function getOrCreateCatchAllProject() {
+  const existing = await prisma.project.findFirst({ where: { projectType: 'catch_all' } })
+  if (existing) return existing
+  return prisma.project.create({
+    data: { name: 'All Other Expenses', projectType: 'catch_all' },
+  })
+}
+
 async function syncCategories(accounts: QboAccount[]): Promise<number> {
   const projects = await prisma.project.findMany()
   const claimedProjects = projects.filter(

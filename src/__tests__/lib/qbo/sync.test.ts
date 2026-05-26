@@ -1,4 +1,4 @@
-import { syncAll } from '@/lib/qbo/sync'
+import { syncAll, getOrCreateCatchAllProject } from '@/lib/qbo/sync'
 
 jest.mock('@/lib/qbo/client', () => ({
   getValidConnection: jest.fn(),
@@ -7,7 +7,7 @@ jest.mock('@/lib/qbo/client', () => ({
 
 jest.mock('@/lib/prisma', () => ({
   prisma: {
-    project: { findMany: jest.fn() },
+    project: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     category: { findMany: jest.fn(), upsert: jest.fn() },
     fundingSource: { findMany: jest.fn(), upsert: jest.fn() },
     actual: { upsert: jest.fn() },
@@ -205,5 +205,45 @@ describe('syncAll — transactions', () => {
     expect(result.actualsUpserted).toBe(1)
     const upsertCall = (mockPrisma.actual.upsert as jest.Mock).mock.calls[0][0]
     expect(upsertCall.create.categoryId).toBe('cat-1')
+  })
+})
+
+describe('getOrCreateCatchAllProject', () => {
+  it('creates a catch_all project when none exists', async () => {
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.project.create as jest.Mock).mockResolvedValue({
+      id: 'new-catch-all',
+      projectType: 'catch_all',
+      name: 'All Other Expenses',
+      qboAccountId: null,
+    })
+
+    const result = await getOrCreateCatchAllProject()
+
+    expect(mockPrisma.project.findFirst).toHaveBeenCalledWith({
+      where: { projectType: 'catch_all' },
+    })
+    expect(mockPrisma.project.create).toHaveBeenCalledWith({
+      data: { name: 'All Other Expenses', projectType: 'catch_all' },
+    })
+    expect(result.id).toBe('new-catch-all')
+  })
+
+  it('returns existing catch_all project without creating a new one', async () => {
+    const existing = {
+      id: 'existing-catch-all',
+      projectType: 'catch_all',
+      name: 'All Other Expenses',
+      qboAccountId: null,
+    }
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue(existing)
+
+    const result = await getOrCreateCatchAllProject()
+
+    expect(mockPrisma.project.findFirst).toHaveBeenCalledWith({
+      where: { projectType: 'catch_all' },
+    })
+    expect(mockPrisma.project.create).not.toHaveBeenCalled()
+    expect(result.id).toBe('existing-catch-all')
   })
 })
