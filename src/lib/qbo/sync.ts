@@ -93,11 +93,14 @@ export async function syncAll(): Promise<{ categoriesSynced: number; actualsUpse
     qboQuery<QboClass>(conn.realmId, conn.accessToken, 'SELECT * FROM Class '),
   ])
 
-  const { upsertCount: categoriesSynced, catchAllCreated } = await syncCategories(accounts)
+  const { upsertCount: categoriesSynced, catchAllCreated, catchAllProjectId } = await syncCategories(accounts)
   await syncFundingSources(classes)
-  // If the catch-all project was just created, force a full history re-fetch so
-  // transactions that predate this sync are picked up for the new categories.
-  const txnConn = catchAllCreated ? { ...conn, lastSyncedAt: null } : conn
+  // Force a full history re-fetch if the catch-all project is new OR exists but
+  // has never had any actuals synced into it (e.g. it was created before this fix).
+  const catchAllNeedsBackfill = catchAllCreated || (conn.lastSyncedAt !== null && await prisma.actual.count({
+    where: { category: { projectId: catchAllProjectId } },
+  }) === 0)
+  const txnConn = catchAllNeedsBackfill ? { ...conn, lastSyncedAt: null } : conn
   const actualsUpserted = await syncTransactions(txnConn, accounts)
 
   await prisma.qboConnection.update({
@@ -117,7 +120,7 @@ export async function getOrCreateCatchAllProject() {
   return { project, created: true }
 }
 
-async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: number; catchAllCreated: boolean }> {
+async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: number; catchAllCreated: boolean; catchAllProjectId: string }> {
   const [projects, { project: catchAllProject, created: catchAllCreated }] = await Promise.all([
     prisma.project.findMany(),
     getOrCreateCatchAllProject(),
@@ -188,7 +191,7 @@ async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: nu
     upsertCount++
   }
 
-  return { upsertCount, catchAllCreated }
+  return { upsertCount, catchAllCreated, catchAllProjectId: catchAllProject!.id }
 }
 
 const COLOR_PALETTE = ['#3b82f6', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']

@@ -10,7 +10,7 @@ jest.mock('@/lib/prisma', () => ({
     project: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     category: { findMany: jest.fn(), upsert: jest.fn() },
     fundingSource: { findMany: jest.fn(), upsert: jest.fn() },
-    actual: { upsert: jest.fn() },
+    actual: { upsert: jest.fn(), count: jest.fn() },
     qboConnection: { update: jest.fn() },
   },
 }))
@@ -42,6 +42,8 @@ beforeEach(() => {
   ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
     id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
   })
+  // Default: catch-all already has actuals, so no backfill needed
+  ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(1)
 })
 
 describe('syncAll — categories', () => {
@@ -264,30 +266,55 @@ describe('getOrCreateCatchAllProject', () => {
 })
 
 describe('syncAll — catch-all first-time sync', () => {
-  it('fetches full transaction history when catch-all project is newly created', async () => {
-    const connWithLastSynced = {
-      ...fakeConn,
-      lastSyncedAt: new Date('2025-01-01'),
-    }
-    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+  const connWithLastSynced = { ...fakeConn, lastSyncedAt: new Date('2025-01-01') }
 
-    // Simulate catch-all not existing yet — first sync
+  function setupCatchAllSync() {
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+    mockQboQuery.mockResolvedValue([])
+  }
+
+  it('fetches full transaction history when catch-all project is newly created', async () => {
+    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+    setupCatchAllSync()
     ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue(null)
     ;(mockPrisma.project.create as jest.Mock).mockResolvedValue({
       id: 'new-catch-all', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
     })
-    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
-    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
-    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
-    mockQboQuery.mockResolvedValue([])
 
     await syncAll()
 
-    // The transaction queries (3rd and 4th qboQuery calls) must use '2020-01-01',
-    // not '2025-01-01', so that pre-existing transactions are picked up
     const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
     expect(purchaseQuery).toContain('2020-01-01')
     expect(purchaseQuery).not.toContain('2025-01-01')
+  })
+
+  it('fetches full transaction history when catch-all project exists but has no actuals yet', async () => {
+    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+    setupCatchAllSync()
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    // Catch-all already exists but has never had actuals synced
+    ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(0)
+
+    await syncAll()
+
+    const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
+    expect(purchaseQuery).toContain('2020-01-01')
+    expect(purchaseQuery).not.toContain('2025-01-01')
+  })
+
+  it('does not force full re-fetch when catch-all already has actuals', async () => {
+    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+    setupCatchAllSync()
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(5)
+
+    await syncAll()
+
+    const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
+    expect(purchaseQuery).toContain('2025-01-01')
+    expect(purchaseQuery).not.toContain('2020-01-01')
   })
 })
