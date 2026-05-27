@@ -57,4 +57,20 @@ describe('POST /api/projects/[id]/funding-sources', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).error).toMatch(/allocatedTotal/)
   })
+
+  it('assigns cyan (#06b6d4) as the color for the second funding source', async () => {
+    mockCount.mockResolvedValue(1) // 1 existing → index 1 in palette
+    const created = { id: 'fs-2', name: 'Grant B', color: '#06b6d4', allocatedTotal: 500 }
+    mockCreate.mockResolvedValue(created)
+    const res = await POST(
+      makeRequest({ name: 'Grant B', qboClassId: 'c2', qboClassName: 'Grant B', allocatedTotal: 500 }),
+      { params }
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.color).toBe('#06b6d4')
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ color: '#06b6d4' }) })
+    )
+  })
 })

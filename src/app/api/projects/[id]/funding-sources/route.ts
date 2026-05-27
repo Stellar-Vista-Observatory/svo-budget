@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { requireWriteAccess } from '@/lib/auth'
 import { NextRequest, NextResponse } from 'next/server'
 
-const COLOR_PALETTE = ['#3b82f6','#16a34a','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316']
+const COLOR_PALETTE = ['#3b82f6','#06b6d4','#f59e0b','#6366f1','#8b5cf6','#ec4899','#14b8a6','#f97316']
 
 export async function POST(
   request: NextRequest,

@@ -194,7 +194,7 @@ async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: nu
   return { upsertCount, catchAllCreated, catchAllProjectId: catchAllProject!.id }
 }
 
-const COLOR_PALETTE = ['#3b82f6', '#16a34a', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
+const COLOR_PALETTE = ['#3b82f6', '#06b6d4', '#f59e0b', '#6366f1', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
 
 async function syncFundingSources(classes: QboClass[]): Promise<void> {
   const existing = await prisma.fundingSource.findMany({
