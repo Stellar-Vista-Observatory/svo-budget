@@ -89,19 +89,13 @@ export async function syncAll(): Promise<{ categoriesSynced: number; actualsUpse
   const conn = await getValidConnection()
 
   const [accounts, classes] = await Promise.all([
-    qboQuery<QboAccount>(conn.realmId, conn.accessToken, 'SELECT * FROM Account '),
+    qboQuery<QboAccount>(conn.realmId, conn.accessToken, 'SELECT * FROM Account WHERE Active IN (true, false)'),
     qboQuery<QboClass>(conn.realmId, conn.accessToken, 'SELECT * FROM Class '),
   ])
 
-  const { upsertCount: categoriesSynced, catchAllCreated, catchAllProjectId } = await syncCategories(accounts)
+  const { upsertCount: categoriesSynced } = await syncCategories(accounts)
   await syncFundingSources(classes)
-  // Force a full history re-fetch if the catch-all project is new OR exists but
-  // has never had any actuals synced into it (e.g. it was created before this fix).
-  const catchAllNeedsBackfill = catchAllCreated || (conn.lastSyncedAt !== null && await prisma.actual.count({
-    where: { category: { projectId: catchAllProjectId } },
-  }) === 0)
-  const txnConn = catchAllNeedsBackfill ? { ...conn, lastSyncedAt: null } : conn
-  const actualsUpserted = await syncTransactions(txnConn, accounts)
+  const actualsUpserted = await syncTransactions(conn, accounts)
 
   await prisma.qboConnection.update({
     where: { id: conn.id },
@@ -191,6 +185,13 @@ async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: nu
     upsertCount++
   }
 
+  const inactiveAccountIds = accounts.filter((a) => !a.Active).map((a) => a.Id)
+  if (inactiveAccountIds.length > 0) {
+    await prisma.category.deleteMany({
+      where: { qboAccountId: { in: inactiveAccountIds } },
+    })
+  }
+
   return { upsertCount, catchAllCreated, catchAllProjectId: catchAllProject!.id }
 }
 
@@ -222,23 +223,19 @@ async function syncFundingSources(classes: QboClass[]): Promise<void> {
 }
 
 async function syncTransactions(
-  conn: Pick<QboConnection, 'realmId' | 'accessToken' | 'lastSyncedAt'>,
+  conn: Pick<QboConnection, 'realmId' | 'accessToken'>,
   accounts: QboAccount[]
 ): Promise<number> {
-  const since = conn.lastSyncedAt
-    ? conn.lastSyncedAt.toISOString().split('T')[0]
-    : '2020-01-01'
-
   const [purchases, bills] = await Promise.all([
     qboQuery<QboPurchase>(
       conn.realmId,
       conn.accessToken,
-      `SELECT * FROM Purchase WHERE MetaData.LastUpdatedTime >= '${since}'`
+      `SELECT * FROM Purchase WHERE MetaData.LastUpdatedTime >= '2020-01-01'`
     ),
     qboQuery<QboBill>(
       conn.realmId,
       conn.accessToken,
-      `SELECT * FROM Bill WHERE MetaData.LastUpdatedTime >= '${since}'`
+      `SELECT * FROM Bill WHERE MetaData.LastUpdatedTime >= '2020-01-01'`
     ),
   ])
 
@@ -258,6 +255,8 @@ async function syncTransactions(
   const fundingSourceByClass = new Map(fundingSources.map((fs) => [fs.qboClassId, fs]))
 
   let upsertCount = 0
+  // Tracks which categoryIds are still valid for each qboTransactionId in this batch
+  const keptCategories = new Map<string, string[]>()
 
   async function processLines(
     txnId: string,
@@ -307,6 +306,10 @@ async function syncTransactions(
         },
       })
       upsertCount++
+
+      const kept = keptCategories.get(qboTransactionId) ?? []
+      kept.push(categoryId)
+      keptCategories.set(qboTransactionId, kept)
     }
   }
 
@@ -316,6 +319,20 @@ async function syncTransactions(
   for (const txn of bills) {
     await processLines(txn.Id, 'Bill', txn.TxnDate, txn.VendorRef?.name, txn.PrivateNote, txn.Line)
   }
+
+  // Remove actuals that were re-categorised to a different QBO account
+  for (const [qboTransactionId, categoryIds] of keptCategories) {
+    await prisma.actual.deleteMany({
+      where: { qboTransactionId, categoryId: { notIn: categoryIds } },
+    })
+  }
+
+  // Purge actuals for transactions deleted in QBO — every sync is a full fetch
+  // so anything not in the result set no longer exists in QBO
+  const fetchedIds = Array.from(keptCategories.keys())
+  await prisma.actual.deleteMany({
+    where: { qboTransactionId: { notIn: fetchedIds } },
+  })
 
   return upsertCount
 }

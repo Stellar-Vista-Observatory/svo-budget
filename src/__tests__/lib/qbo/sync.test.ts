@@ -8,9 +8,9 @@ jest.mock('@/lib/qbo/client', () => ({
 jest.mock('@/lib/prisma', () => ({
   prisma: {
     project: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
-    category: { findMany: jest.fn(), upsert: jest.fn() },
+    category: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
     fundingSource: { findMany: jest.fn(), upsert: jest.fn() },
-    actual: { upsert: jest.fn(), count: jest.fn() },
+    actual: { upsert: jest.fn(), deleteMany: jest.fn() },
     qboConnection: { update: jest.fn() },
   },
 }))
@@ -42,8 +42,8 @@ beforeEach(() => {
   ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
     id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
   })
-  // Default: catch-all already has actuals, so no backfill needed
-  ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(1)
+  ;(mockPrisma.actual.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+  ;(mockPrisma.category.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
 })
 
 describe('syncAll — categories', () => {
@@ -265,24 +265,177 @@ describe('getOrCreateCatchAllProject', () => {
   })
 })
 
-describe('syncAll — catch-all first-time sync', () => {
-  const connWithLastSynced = { ...fakeConn, lastSyncedAt: new Date('2025-01-01') }
-
-  function setupCatchAllSync() {
-    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+describe('syncAll — stale actuals cleanup', () => {
+  function setupBasicSync(accounts: unknown[], purchases: unknown[]) {
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(purchases)
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+    })
     ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
-    mockQboQuery.mockResolvedValue([])
+    ;(mockPrisma.actual.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.actual.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
   }
 
-  it('fetches full transaction history when catch-all project is newly created', async () => {
-    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
-    setupCatchAllSync()
-    ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue(null)
-    ;(mockPrisma.project.create as jest.Mock).mockResolvedValue({
-      id: 'new-catch-all', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
+  it('deletes actuals whose qboTransactionId was re-categorised to a different category', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'cat-a', Name: 'Signage', FullyQualifiedName: 'Construction:Signage', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+    ]
+    // Transaction txn-1 is now under cat-a (Signage); it used to be under cat-b (Solar System Walk)
+    const purchases = [
+      {
+        Id: 'txn-1',
+        TxnDate: '2026-04-08',
+        EntityRef: { name: 'Solar System Trails' },
+        Line: [
+          {
+            LineNum: 1,
+            Amount: 1000,
+            DetailType: 'AccountBasedExpenseLineDetail',
+            AccountBasedExpenseLineDetail: { AccountRef: { value: 'cat-a' } },
+          },
+        ],
+      },
+    ]
+
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
+      { id: 'cat-a-id', qboAccountId: 'cat-a' },
+    ])
+    setupBasicSync(accounts, purchases)
+
+    await syncAll()
+
+    // Must delete actuals for 'Purchase-txn-1-L0' that are NOT mapped to the new category
+    expect(mockPrisma.actual.deleteMany).toHaveBeenCalledWith({
+      where: {
+        qboTransactionId: 'Purchase-txn-1-L0',
+        categoryId: { notIn: ['cat-a-id'] },
+      },
     })
+  })
+
+  it('deletes actuals for transactions that were deleted in QBO during a full sync', async () => {
+    // Full sync (lastSyncedAt = null) returns only txn-2; txn-1 was deleted in QBO
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'cat-a', Name: 'Signage', FullyQualifiedName: 'Construction:Signage', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+    ]
+    const purchases = [
+      {
+        Id: 'txn-2',
+        TxnDate: '2026-04-08',
+        EntityRef: { name: 'Vendor B' },
+        Line: [
+          {
+            LineNum: 1,
+            Amount: 500,
+            DetailType: 'AccountBasedExpenseLineDetail',
+            AccountBasedExpenseLineDetail: { AccountRef: { value: 'cat-a' } },
+          },
+        ],
+      },
+    ]
+
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
+      { id: 'cat-a-id', qboAccountId: 'cat-a' },
+    ])
+    setupBasicSync(accounts, purchases)
+
+    await syncAll()
+
+    // Full sync: must purge all actuals whose transaction was deleted from QBO
+    expect(mockPrisma.actual.deleteMany).toHaveBeenCalledWith({
+      where: { qboTransactionId: { notIn: ['Purchase-txn-2-L0'] } },
+    })
+  })
+})
+
+describe('syncAll — inactive account cleanup', () => {
+  it('queries QBO accounts including inactive ones', async () => {
+    mockQboQuery.mockResolvedValue([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+
+    await syncAll()
+
+    const accountQuery = mockQboQuery.mock.calls[0][2] as string
+    expect(accountQuery).toMatch(/Active\s+IN\s*\(true,\s*false\)/i)
+  })
+
+  it('deletes categories whose QBO account has been inactivated', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'child-active', Name: 'Foundation', FullyQualifiedName: 'Construction:Foundation', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+      { Id: 'child-inactive', Name: 'Solar System Walk', FullyQualifiedName: 'Construction:Solar System Walk', ParentRef: { value: 'parent-1' }, Active: false, AccountType: 'Expense' },
+    ]
+
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+
+    await syncAll()
+
+    expect(mockPrisma.category.deleteMany).toHaveBeenCalledWith({
+      where: { qboAccountId: { in: ['child-inactive'] } },
+    })
+  })
+
+  it('does not delete categories for still-active QBO accounts', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'child-active', Name: 'Foundation', FullyQualifiedName: 'Construction:Foundation', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+    ]
+
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+
+    await syncAll()
+
+    const deleteCalls = (mockPrisma.category.deleteMany as jest.Mock).mock.calls
+    const deletedAnything = deleteCalls.some(
+      (call) => (call[0]?.where?.qboAccountId?.in ?? []).length > 0
+    )
+    expect(deletedAnything).toBe(false)
+  })
+})
+
+describe('syncAll — always full fetch', () => {
+  it('fetches all transactions from 2020-01-01 even when lastSyncedAt is set', async () => {
+    const connWithLastSynced = { ...fakeConn, lastSyncedAt: new Date('2025-01-01') }
+    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.actual.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    mockQboQuery.mockResolvedValue([])
 
     await syncAll()
 
@@ -291,30 +444,42 @@ describe('syncAll — catch-all first-time sync', () => {
     expect(purchaseQuery).not.toContain('2025-01-01')
   })
 
-  it('fetches full transaction history when catch-all project exists but has no actuals yet', async () => {
+  it('purges deleted-in-QBO actuals on every sync, not just when lastSyncedAt is null', async () => {
+    const connWithLastSynced = { ...fakeConn, lastSyncedAt: new Date('2025-01-01') }
     mockGetValidConnection.mockResolvedValue(connWithLastSynced)
-    setupCatchAllSync()
-    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
-    // Catch-all already exists but has never had actuals synced
-    ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(0)
+
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'cat-a', Name: 'Signage', FullyQualifiedName: 'Construction:Signage', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+    ]
+    const purchases = [
+      {
+        Id: 'txn-2',
+        TxnDate: '2026-04-08',
+        EntityRef: { name: 'Vendor B' },
+        Line: [{ LineNum: 1, Amount: 500, DetailType: 'AccountBasedExpenseLineDetail', AccountBasedExpenseLineDetail: { AccountRef: { value: 'cat-a' } } }],
+      },
+    ]
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(purchases)
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
+      { id: 'cat-a-id', qboAccountId: 'cat-a' },
+    ])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.actual.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.actual.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
 
     await syncAll()
 
-    const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
-    expect(purchaseQuery).toContain('2020-01-01')
-    expect(purchaseQuery).not.toContain('2025-01-01')
-  })
-
-  it('does not force full re-fetch when catch-all already has actuals', async () => {
-    mockGetValidConnection.mockResolvedValue(connWithLastSynced)
-    setupCatchAllSync()
-    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
-    ;(mockPrisma.actual.count as jest.Mock).mockResolvedValue(5)
-
-    await syncAll()
-
-    const purchaseQuery = mockQboQuery.mock.calls[2][2] as string
-    expect(purchaseQuery).toContain('2025-01-01')
-    expect(purchaseQuery).not.toContain('2020-01-01')
+    expect(mockPrisma.actual.deleteMany).toHaveBeenCalledWith({
+      where: { qboTransactionId: { notIn: ['Purchase-txn-2-L0'] } },
+    })
   })
 })
