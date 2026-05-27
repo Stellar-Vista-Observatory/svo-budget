@@ -563,6 +563,7 @@ function CategoryRow({
   const { totalBudget, totalSpent, totalAllocated } = category
   const coverageDelta = totalBudget - totalAllocated
   const remaining = totalBudget - totalSpent
+  const isOverspent = remaining < 0
   const spentPct = pct(totalSpent, totalBudget)
 
   const hdrSx = {
@@ -619,31 +620,26 @@ function CategoryRow({
             </Typography>
           </Box>
         </TableCell>
-        {(() => {
-          const isOverspent = remaining < 0
-          return (
-            <TableCell
-              align="right"
-              sx={{
-                ...hdrSx,
-                bgcolor: isOverspent ? '#fef2f2' : hdrSx.bgcolor,
-                borderLeft: isOverspent ? '3px solid #dc2626' : undefined,
-              }}
-            >
-              {isOverspent ? (
-                <Chip
-                  label={`Overspent ${fmt(Math.abs(remaining))}`}
-                  size="small"
-                  sx={{ bgcolor: '#dc2626', color: 'white', fontWeight: 700 }}
-                />
-              ) : (
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining === 0 && totalBudget === 0 ? 'text.disabled' : 'inherit' }}>
-                  {totalBudget === 0 && totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
-                </Typography>
-              )}
-            </TableCell>
-          )
-        })()}
+        <TableCell
+          align="right"
+          sx={{
+            ...hdrSx,
+            bgcolor: isOverspent ? '#fef2f2' : hdrSx.bgcolor,
+            borderLeft: isOverspent ? '3px solid #dc2626' : undefined,
+          }}
+        >
+          {isOverspent ? (
+            <Chip
+              label={`Overspent ${fmt(Math.abs(remaining))}`}
+              size="small"
+              sx={{ bgcolor: '#dc2626', color: 'white', fontWeight: 700 }}
+            />
+          ) : (
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining === 0 && totalBudget === 0 ? 'text.disabled' : 'inherit' }}>
+              {totalBudget === 0 && totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
+            </Typography>
+          )}
+        </TableCell>
         <TableCell sx={hdrSx} />
       </TableRow>
 
