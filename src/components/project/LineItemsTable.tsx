@@ -637,7 +637,7 @@ function CategoryRow({
                   sx={{ bgcolor: '#dc2626', color: 'white', fontWeight: 700 }}
                 />
               ) : (
-                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining === 0 && totalBudget === 0 ? '#9e9e9e' : '#2e7d32' }}>
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining === 0 && totalBudget === 0 ? 'text.disabled' : 'inherit' }}>
                   {totalBudget === 0 && totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
                 </Typography>
               )}
