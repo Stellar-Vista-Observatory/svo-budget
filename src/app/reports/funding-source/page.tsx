@@ -60,7 +60,7 @@ interface FundingSourceReportData {
 const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 
-const pctSpent = (spent: number, budgeted: number): string => {
+export const pctSpent = (spent: number, budgeted: number): string => {
   if (budgeted === 0) return '—'
   return `${Math.round((spent / budgeted) * 100)}%`
 }
@@ -108,7 +108,7 @@ export default function FundingSourceReport() {
           const entries: { name: string; allocatedAmount: number }[] = []
           let catAllocated = 0
 
-          for (const entry of cat.budgetEntries) {
+          for (const entry of cat.budgetEntries ?? []) {
             const alloc = entry.allocations.find((a: { fundingSourceId: string }) => a.fundingSourceId === selectedFsId)
             if (alloc) {
               entries.push({ name: entry.name, allocatedAmount: alloc.allocatedAmount })
@@ -116,7 +116,7 @@ export default function FundingSourceReport() {
             }
           }
 
-          const catActuals: ActualItem[] = cat.actuals
+          const catActuals: ActualItem[] = (cat.actuals ?? [])
             .filter((a: { fundingSourceId: string | null }) => a.fundingSourceId === selectedFsId)
             .map((a: { date: string; vendor: string | null; memo: string | null; amount: number }) => ({
               date: a.date,

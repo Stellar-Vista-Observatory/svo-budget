@@ -1,7 +1,4 @@
-function pctSpent(spent: number, budgeted: number): string {
-  if (budgeted === 0) return '—'
-  return `${Math.round((spent / budgeted) * 100)}%`
-}
+import { pctSpent } from '../page'
 
 describe('pctSpent', () => {
   it('returns percentage of spent vs budgeted', () => {
