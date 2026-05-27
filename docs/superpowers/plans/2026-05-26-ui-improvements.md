@@ -377,6 +377,7 @@ import PrintIcon from '@mui/icons-material/Print'
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -543,7 +544,11 @@ export default function BudgetVsActualReport() {
                   <YAxis tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value: number) => fmt(value)} />
                   <Legend />
-                  <Bar dataKey="Actuals" stackId="a" fill="#3b82f6" />
+                  <Bar dataKey="Actuals" stackId="a">
+                    {chartData.map((entry, index) => (
+                      <Cell key={index} fill={entry.overspent ? '#dc2626' : '#3b82f6'} />
+                    ))}
+                  </Bar>
                   <Bar dataKey="Remaining" stackId="a" fill="#e2e8f0" />
                 </BarChart>
               </ResponsiveContainer>
@@ -1066,7 +1071,7 @@ git commit -m "feat: update Funding Source report with labels, dark header, actu
   - ✅ Funding Source: labels, header, actuals, % Spent (Task 5)
   - ✅ Header styling: dark navy applied in Tasks 3, 4, 5
 
-- **Overspent chart bar:** The chart in Task 4 uses a fixed blue fill for all Actuals bars. The spec called for red bars when overspent. Recharts `Bar` supports a `Cell` component for per-bar coloring — but adding it would complicate the plan significantly and the red row in the table already communicates overspending. Left as blue for simplicity; can be a follow-up.
+- **Overspent chart bar:** Actuals bars use red (`#dc2626`) when overspent via Recharts `Cell` per-bar coloring. The `chartData` `overspent` flag drives this.
 
 - **Type consistency:** `ActualItem` interface defined identically in both report pages (Tasks 4 and 5). `pctSpent` function defined in the page file (Task 5) matches the test utility function exactly.
 
