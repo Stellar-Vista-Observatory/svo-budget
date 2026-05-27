@@ -275,7 +275,7 @@ export default function BudgetVsActualReport() {
                                           fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
                                           textTransform: 'uppercase' }}
                                   >
-                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
                                       <LockIcon sx={{ fontSize: 11 }} />
                                       <span>Actuals · QBO Read only</span>
                                     </Stack>
