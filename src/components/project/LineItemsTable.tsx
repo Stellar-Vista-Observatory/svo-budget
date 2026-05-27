@@ -566,6 +566,17 @@ function CategoryRow({
   const isOverspent = remaining < 0
   const spentPct = pct(totalSpent, totalBudget)
 
+  const fsRemaining: Record<string, number> = {}
+  for (const fs of fundingSources) {
+    const allocated = category.budgetEntries.reduce(
+      (s, e) => s + (e.allocations.find((a) => a.fundingSourceId === fs.id)?.allocatedAmount ?? 0), 0
+    )
+    const spent = category.actuals
+      .filter((a) => a.fundingSourceId === fs.id)
+      .reduce((s, a) => s + a.amount, 0)
+    fsRemaining[fs.id] = allocated - spent
+  }
+
   const hdrSx = {
     py: 0.75,
     fontWeight: 700,
@@ -594,9 +605,34 @@ function CategoryRow({
           </Box>
         </TableCell>
         <TableCell align="right" sx={hdrSx}>{fmt(totalBudget)}</TableCell>
-        {fundingSources.map((fs) => (
-          <TableCell key={fs.id} sx={{ ...hdrSx, borderLeft: `2px solid ${fs.color}33` }} />
-        ))}
+        {fundingSources.map((fs) => {
+          const rem = fsRemaining[fs.id]
+          const fsOverspent = rem < 0
+          const fsEmpty = rem === 0 && !category.actuals.some((a) => a.fundingSourceId === fs.id) && !category.budgetEntries.some((e) => e.allocations.some((a) => a.fundingSourceId === fs.id))
+          return (
+            <TableCell
+              key={fs.id}
+              align="right"
+              sx={{
+                ...hdrSx,
+                borderLeft: `2px solid ${fs.color}33`,
+                bgcolor: fsOverspent ? '#fef2f2' : hdrSx.bgcolor,
+              }}
+            >
+              {fsEmpty ? null : fsOverspent ? (
+                <Chip
+                  label={`−${fmt(Math.abs(rem))}`}
+                  size="small"
+                  sx={{ bgcolor: '#dc2626', color: 'white', fontWeight: 700, height: 18, fontSize: '0.68rem' }}
+                />
+              ) : (
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: rem === 0 ? 'text.disabled' : 'inherit' }}>
+                  {rem === 0 ? '—' : fmt(rem)}
+                </Typography>
+              )}
+            </TableCell>
+          )
+        })}
         <TableCell align="right" sx={hdrSx}>{fmt(totalAllocated)}</TableCell>
         <TableCell align="right" sx={{ ...hdrSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0', fontSize: '0.78rem' }}>
           {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
