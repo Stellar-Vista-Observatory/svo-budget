@@ -199,7 +199,7 @@ export default function BudgetVsActualReport() {
                 <BarChart data={chartData} margin={{ top: 4, right: 16, left: 16, bottom: 4 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: number) => fmt(value)} />
+                  <Tooltip formatter={(value) => value != null ? fmt(Number(value)) : ''} />
                   <Legend />
                   <Bar dataKey="Actuals" stackId="a">
                     {chartData.map((entry, index) => (
