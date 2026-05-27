@@ -73,15 +73,15 @@ describe('syncAll — categories', () => {
 
     const result = await syncAll()
 
-    // 1 "General" category for root + 2 direct children = 3
+    // 1 "Uncategorized" category for root + 2 direct children = 3
     expect(result.categoriesSynced).toBe(3)
     expect(mockPrisma.category.upsert).toHaveBeenCalledTimes(3)
 
-    // First call is the "General" category for the root account
-    const generalCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[0][0]
-    expect(generalCall.create.projectId).toBe('proj-1')
-    expect(generalCall.where.qboAccountId).toBe('parent-1')
-    expect(generalCall.create.name).toBe('Uncategorized')
+    // First call is the "Uncategorized" category for the root account
+    const uncategorizedCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[0][0]
+    expect(uncategorizedCall.create.projectId).toBe('proj-1')
+    expect(uncategorizedCall.where.qboAccountId).toBe('parent-1')
+    expect(uncategorizedCall.create.name).toBe('Uncategorized')
 
     // Second call is first direct child
     const childCall = (mockPrisma.category.upsert as jest.Mock).mock.calls[1][0]
