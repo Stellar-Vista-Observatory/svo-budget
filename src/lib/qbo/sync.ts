@@ -136,16 +136,16 @@ async function syncCategories(accounts: QboAccount[]): Promise<{ upsertCount: nu
     const subtree = collectSubtree(accounts, project.qboAccountId!)
     subtree.forEach((id) => claimedAccountIds.add(id))
 
-    // Create a "General" category for the project root account itself
+    // Create an "Uncategorized" category for the project root account itself
     // so transactions posted directly to the root aren't dropped
     await prisma.category.upsert({
       where: { qboAccountId: project.qboAccountId! },
-      update: { name: 'General', qboAccountName: project.qboAccountName ?? 'General', projectId: project.id, sortOrder: 0 },
+      update: { name: 'Uncategorized', qboAccountName: project.qboAccountName ?? 'Uncategorized', projectId: project.id, sortOrder: 0 },
       create: {
         projectId: project.id,
-        name: 'General',
+        name: 'Uncategorized',
         qboAccountId: project.qboAccountId!,
-        qboAccountName: project.qboAccountName ?? 'General',
+        qboAccountName: project.qboAccountName ?? 'Uncategorized',
         sortOrder: 0,
       },
     })
