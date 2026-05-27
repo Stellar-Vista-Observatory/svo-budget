@@ -90,11 +90,19 @@ export default function BudgetVsActualReport() {
 
   useEffect(() => {
     if (!selectedId) return
-    Promise.resolve().then(() => setLoading(true))
-    fetch(`/api/projects/${selectedId}`).then((r) => r.json()).then((d) => {
-      setReport(d)
-      setLoading(false)
-    })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true)
+    fetch(`/api/projects/${selectedId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && Array.isArray(d.categories)) {
+          setReport(d)
+        } else {
+          setReport(null)
+        }
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [selectedId])
 
   const chartData = report?.categories.map((cat) => {
@@ -232,52 +240,60 @@ export default function BudgetVsActualReport() {
 
                         {showDetail && (
                           <>
-                            {/* BUDGETED sub-header */}
-                            <TableRow>
-                              <TableCell
-                                colSpan={5}
-                                sx={{ pl: 3, py: 0.5, bgcolor: '#f8fafc', color: 'text.secondary',
-                                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
-                                      textTransform: 'uppercase' }}
-                              >
-                                Budgeted
-                              </TableCell>
-                            </TableRow>
-                            {cat.budgetEntries.map((entry) => (
-                              <TableRow key={entry.id}>
-                                <TableCell sx={{ pl: 5 }}>{entry.name}</TableCell>
-                                <TableCell align="right">{fmt(entry.estimatedAmount)}</TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                              </TableRow>
-                            ))}
+                            {cat.budgetEntries.length > 0 && (
+                              <>
+                                {/* BUDGETED sub-header */}
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={5}
+                                    sx={{ pl: 3, py: 0.5, bgcolor: '#f8fafc', color: 'text.secondary',
+                                          fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
+                                          textTransform: 'uppercase' }}
+                                  >
+                                    Budgeted
+                                  </TableCell>
+                                </TableRow>
+                                {cat.budgetEntries.map((entry) => (
+                                  <TableRow key={entry.id}>
+                                    <TableCell sx={{ pl: 5 }}>{entry.name}</TableCell>
+                                    <TableCell align="right">{fmt(entry.estimatedAmount)}</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                  </TableRow>
+                                ))}
+                              </>
+                            )}
 
-                            {/* ACTUALS sub-header */}
-                            <TableRow>
-                              <TableCell
-                                colSpan={5}
-                                sx={{ pl: 3, py: 0.5, bgcolor: '#f8fafc', color: 'text.secondary',
-                                      fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
-                                      textTransform: 'uppercase' }}
-                              >
-                                <Stack direction="row" spacing={0.5} alignItems="center">
-                                  <LockIcon sx={{ fontSize: 11 }} />
-                                  <span>Actuals · QBO Read only</span>
-                                </Stack>
-                              </TableCell>
-                            </TableRow>
-                            {cat.actuals.map((actual) => (
-                              <TableRow key={actual.id}>
-                                <TableCell sx={{ pl: 5 }}>
-                                  {actual.date} {actual.vendor ?? actual.memo ?? '—'}
-                                </TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                                <TableCell align="right">{fmt(actual.amount)}</TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                                <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                              </TableRow>
-                            ))}
+                            {cat.actuals.length > 0 && (
+                              <>
+                                {/* ACTUALS sub-header */}
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={5}
+                                    sx={{ pl: 3, py: 0.5, bgcolor: '#f8fafc', color: 'text.secondary',
+                                          fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
+                                          textTransform: 'uppercase' }}
+                                  >
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                      <LockIcon sx={{ fontSize: 11 }} />
+                                      <span>Actuals · QBO Read only</span>
+                                    </Stack>
+                                  </TableCell>
+                                </TableRow>
+                                {cat.actuals.map((actual) => (
+                                  <TableRow key={actual.id}>
+                                    <TableCell sx={{ pl: 5 }}>
+                                      {actual.date} {actual.vendor ?? actual.memo ?? '—'}
+                                    </TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                    <TableCell align="right">{fmt(actual.amount)}</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                    <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
+                                  </TableRow>
+                                ))}
+                              </>
+                            )}
                           </>
                         )}
                       </Fragment>
