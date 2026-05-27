@@ -296,7 +296,7 @@ export default function FundingSourceReport() {
                               </TableCell>
                             </TableRow>
                             {cat.actuals.map((actual, i) => (
-                              <TableRow key={`${cat.categoryName}-actual-${i}`}>
+                              <TableRow key={`${cat.categoryName}-actual-${actual.date}-${actual.amount}-${i}`}>
                                 <TableCell sx={{ pl: 5 }}>
                                   {actual.date} {actual.vendor ?? actual.memo ?? '—'}
                                 </TableCell>

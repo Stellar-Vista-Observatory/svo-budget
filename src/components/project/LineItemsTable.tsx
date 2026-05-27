@@ -691,7 +691,7 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
         {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
       </TableCell>
       <TableCell align="right" sx={cellSx}>{fmt(totalActual)}</TableCell>
-      <TableCell align="right" sx={{ ...cellSx, color: remaining < 0 ? '#c62828' : '#2e7d32' }}>
+      <TableCell align="right" sx={{ ...cellSx, color: remaining < 0 ? '#dc2626' : '#2e7d32' }}>
         {fmt(remaining)}
       </TableCell>
       <TableCell sx={cellSx} />
