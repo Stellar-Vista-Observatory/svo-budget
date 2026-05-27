@@ -619,11 +619,31 @@ function CategoryRow({
             </Typography>
           </Box>
         </TableCell>
-        <TableCell align="right" sx={hdrSx}>
-          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining < 0 ? '#c62828' : '#2e7d32' }}>
-            {totalBudget === 0 && totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
-          </Typography>
-        </TableCell>
+        {(() => {
+          const isOverspent = remaining < 0
+          return (
+            <TableCell
+              align="right"
+              sx={{
+                ...hdrSx,
+                bgcolor: isOverspent ? '#fef2f2' : hdrSx.bgcolor,
+                borderLeft: isOverspent ? '3px solid #dc2626' : undefined,
+              }}
+            >
+              {isOverspent ? (
+                <Chip
+                  label={`Overspent ${fmt(Math.abs(remaining))}`}
+                  size="small"
+                  sx={{ bgcolor: '#dc2626', color: 'white', fontWeight: 700 }}
+                />
+              ) : (
+                <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: remaining === 0 && totalBudget === 0 ? '#9e9e9e' : '#2e7d32' }}>
+                  {totalBudget === 0 && totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>—</span> : fmt(remaining)}
+                </Typography>
+              )}
+            </TableCell>
+          )
+        })()}
         <TableCell sx={hdrSx} />
       </TableRow>
 
@@ -761,35 +781,35 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
       <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2, maxHeight: 'calc(100vh - 300px)', overflow: 'auto', width: '100%' }}>
         <Table stickyHeader size="small" sx={{ tableLayout: 'auto', width: '100%' }}>
           <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 700, minWidth: 220, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+            <TableRow sx={{ bgcolor: '#1e3a5f', '& th': { color: 'white', fontWeight: 700 } }}>
+              <TableCell sx={{ fontWeight: 700, minWidth: 220, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 Category / Item
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 Budget
               </TableCell>
               {fundingSources.map((fs) => (
-                <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
+                <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
                   <Tooltip title={fs.name}>
                     <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fsLabel(fs.name)}</Typography>
                   </Tooltip>
                 </TableCell>
               ))}
-              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 Allocated
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Funding</Typography>
                 <Typography sx={{ fontSize: '0.61rem', color: '#ffffffaa', lineHeight: 1.1 }}>Budget−Alloc</Typography>
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 82, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 Actuals
               </TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: 'primary.main', color: '#fff' }}>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 90, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, lineHeight: 1.2 }}>Remaining</Typography>
                 <Typography sx={{ fontSize: '0.61rem', color: '#ffffffaa', lineHeight: 1.1 }}>Budget−Actuals</Typography>
               </TableCell>
-              <TableCell sx={{ width: 32, py: 1, px: 0, bgcolor: 'primary.main' }} />
+              <TableCell sx={{ width: 32, py: 1, px: 0, bgcolor: '#1e3a5f' }} />
             </TableRow>
           </TableHead>
           <TableBody>
