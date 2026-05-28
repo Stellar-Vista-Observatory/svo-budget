@@ -20,8 +20,11 @@ export async function PATCH(req: Request) {
   const auth = await requireAuth()
   if ('error' in auth) return auth.error
 
-  const { showActualsAsNegative } = (await req.json()) as {
-    showActualsAsNegative: boolean
+  let showActualsAsNegative: boolean
+  try {
+    ;({ showActualsAsNegative } = (await req.json()) as { showActualsAsNegative: boolean })
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
   const pref = await prisma.userPreference.upsert({
