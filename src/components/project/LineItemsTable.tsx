@@ -2,6 +2,8 @@
 
 import React, { useState, useRef } from 'react'
 import { useToast } from '@/components/ToastProvider'
+import { applyActualSign } from '@/lib/formatting'
+import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import {
   Box,
   Button,
@@ -454,6 +456,8 @@ function ActualsSection({
     else if (signal.action === 'collapse-all' || signal.action === 'focus-budget' || signal.action === 'summary') setOpen(false)
   }
 
+  const { showActualsAsNegative } = useUserPreferences()
+
   if (actuals.length === 0) return null
 
   const totalActual = actuals.reduce((s, a) => s + a.amount, 0)
@@ -488,12 +492,18 @@ function ActualsSection({
         <TableCell sx={subHdrSx} />
         {fundingSources.map((fs) => (
           <TableCell key={fs.id} align="right" sx={{ ...subHdrSx, borderLeft: `2px solid ${fs.color}33` }}>
-            {actualBySourceId[fs.id] > 0 ? fmt(actualBySourceId[fs.id]) : <span style={{ color: '#ccc' }}>—</span>}
+            {actualBySourceId[fs.id] > 0
+              ? <span style={{ color: showActualsAsNegative ? 'var(--mui-palette-error-main, #d32f2f)' : undefined }}>
+                  {fmt(applyActualSign(actualBySourceId[fs.id], showActualsAsNegative))}
+                </span>
+              : <span style={{ color: '#ccc' }}>—</span>}
           </TableCell>
         ))}
         <TableCell sx={subHdrSx} />
         <TableCell sx={subHdrSx} />
-        <TableCell align="right" sx={subHdrSx}>{fmt(totalActual)}</TableCell>
+        <TableCell align="right" sx={{ ...subHdrSx, color: showActualsAsNegative ? 'error.main' : undefined }}>
+          {fmt(applyActualSign(totalActual, showActualsAsNegative))}
+        </TableCell>
         <TableCell sx={subHdrSx} />
         <TableCell sx={subHdrSx} />
       </TableRow>
@@ -514,7 +524,9 @@ function ActualsSection({
           {fundingSources.map((fs) => (
             <TableCell key={fs.id} align="right" sx={{ ...baseCellSx, borderLeft: `2px solid ${fs.color}22` }}>
               {fs.id === a.fundingSourceId
-                ? <Typography sx={{ fontSize: '0.78rem', color: a.fundingSourceColor, fontWeight: 500 }}>{fmt(a.amount)}</Typography>
+                ? <Typography sx={{ fontSize: '0.78rem', color: showActualsAsNegative ? 'error.main' : a.fundingSourceColor, fontWeight: 500 }}>
+                    {fmt(applyActualSign(a.amount, showActualsAsNegative))}
+                  </Typography>
                 : <Typography sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>—</Typography>
               }
             </TableCell>
@@ -522,7 +534,9 @@ function ActualsSection({
           <TableCell sx={baseCellSx} />
           <TableCell sx={baseCellSx} />
           <TableCell align="right" sx={baseCellSx}>
-            <Typography sx={{ fontSize: '0.78rem', fontWeight: 500 }}>{fmt(a.amount)}</Typography>
+            <Typography sx={{ fontSize: '0.78rem', fontWeight: 500, color: showActualsAsNegative ? 'error.main' : undefined }}>
+              {fmt(applyActualSign(a.amount, showActualsAsNegative))}
+            </Typography>
           </TableCell>
           <TableCell sx={baseCellSx} />
           <TableCell sx={baseCellSx} />
@@ -553,6 +567,7 @@ function CategoryRow({
 }) {
   const [open, setOpen] = useState(true)
   const [seenSignal, setSeenSignal] = useState(signal.count)
+  const { showActualsAsNegative } = useUserPreferences()
 
   if (signal.count !== seenSignal) {
     setSeenSignal(signal.count)
@@ -651,8 +666,10 @@ function CategoryRow({
                 />
               </Box>
             )}
-            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700 }}>
-              {totalSpent === 0 ? <span style={{ color: '#9e9e9e' }}>$0</span> : fmt(totalSpent)}
+            <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: totalSpent === 0 ? undefined : showActualsAsNegative ? 'error.main' : undefined }}>
+              {totalSpent === 0
+                ? <span style={{ color: '#9e9e9e' }}>$0</span>
+                : fmt(applyActualSign(totalSpent, showActualsAsNegative))}
             </Typography>
           </Box>
         </TableCell>
@@ -704,6 +721,7 @@ function CategoryRow({
 // ── Totals Row ────────────────────────────────────────────────────────────────
 
 function TotalsRow({ categories, fundingSources }: { categories: CategoryData[]; fundingSources: FundingSourceOption[] }) {
+  const { showActualsAsNegative } = useUserPreferences()
   const totalBudget = categories.reduce((s, c) => s + c.totalBudget, 0)
   const totalAllocated = categories.reduce((s, c) => s + c.totalAllocated, 0)
   const totalActual = categories.reduce((s, c) => s + c.totalSpent, 0)
@@ -726,7 +744,9 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
       <TableCell align="right" sx={{ ...cellSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0' }}>
         {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
       </TableCell>
-      <TableCell align="right" sx={cellSx}>{fmt(totalActual)}</TableCell>
+      <TableCell align="right" sx={{ ...cellSx, color: showActualsAsNegative ? 'error.main' : undefined }}>
+        {fmt(applyActualSign(totalActual, showActualsAsNegative))}
+      </TableCell>
       <TableCell align="right" sx={{ ...cellSx, color: remaining < 0 ? '#dc2626' : '#2e7d32' }}>
         {fmt(remaining)}
       </TableCell>
