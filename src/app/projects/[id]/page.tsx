@@ -2,6 +2,8 @@
 
 import { AppShell } from '@/components/layout/AppShell'
 import { LineItemsTable } from '@/components/project/LineItemsTable'
+import { applyActualSign } from '@/lib/formatting'
+import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import Link from 'next/link'
 import { useCallback, useEffect, useState, use } from 'react'
 import {
@@ -107,6 +109,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [allFundingSources, setAllFundingSources] = useState<FundingSourceData[]>([])
   const [error, setError] = useState<string | null>(null)
+  const { showActualsAsNegative } = useUserPreferences()
 
   const loadProject = useCallback(async () => {
     const [projRes, fsRes] = await Promise.all([
@@ -184,7 +187,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           <StatBox label="Total Budget" value={fmt(project.totalEstimated)} />
           <StatBox label="Allocated" value={fmt(project.totalSecured)} highlight={fundingGap <= 0 ? 'good' : undefined} />
           {fundingGap > 0 && <StatBox label="Funding Gap" value={fmt(fundingGap)} highlight="warn" />}
-          <StatBox label="Actuals To Date" value={fmt(project.totalSpent)} />
+          <StatBox
+            label="Actuals To Date"
+            value={fmt(applyActualSign(project.totalSpent, showActualsAsNegative))}
+            highlight={showActualsAsNegative && project.totalSpent > 0 ? 'bad' : undefined}
+          />
           <StatBox
             label="Remaining"
             value={fmt(remaining)}
