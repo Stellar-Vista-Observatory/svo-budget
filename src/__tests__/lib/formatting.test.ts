@@ -9,7 +9,7 @@ describe('applyActualSign', () => {
       expect(applyActualSign(-29000, true)).toBe(-29000)
     })
     it('returns 0 for zero', () => {
-      expect(Object.is(applyActualSign(0, true), -0)).toBe(true)
+      expect(applyActualSign(0, true)).toBe(0)
     })
   })
 
