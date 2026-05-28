@@ -493,9 +493,9 @@ function ActualsSection({
         {fundingSources.map((fs) => (
           <TableCell key={fs.id} align="right" sx={{ ...subHdrSx, borderLeft: `2px solid ${fs.color}33` }}>
             {actualBySourceId[fs.id] > 0
-              ? <span style={{ color: showActualsAsNegative ? 'var(--mui-palette-error-main, #d32f2f)' : undefined }}>
+              ? <Typography component="span" sx={{ color: showActualsAsNegative ? 'error.main' : undefined }}>
                   {fmt(applyActualSign(actualBySourceId[fs.id], showActualsAsNegative))}
-                </span>
+                </Typography>
               : <span style={{ color: '#ccc' }}>—</span>}
           </TableCell>
         ))}
