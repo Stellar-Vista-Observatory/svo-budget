@@ -1,17 +1,21 @@
 'use client'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Alert,
   Box,
   Button,
   Chip,
+  Divider,
+  FormControlLabel,
   IconButton,
   MenuItem,
   Paper,
   Select,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -46,6 +50,8 @@ interface Project {
 }
 
 export default function SettingsPage() {
+  const { showActualsAsNegative, setShowActualsAsNegative } = useUserPreferences()
+
   const [status, setStatus] = useState<QboStatus | null>(null)
   const [accounts, setAccounts] = useState<QboAccount[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -371,6 +377,28 @@ export default function SettingsPage() {
             </TableContainer>
           </Paper>
         )}
+
+        {/* Display Preferences */}
+        <Paper variant="outlined" sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>Display Preferences</Typography>
+          <Divider sx={{ mb: 2 }} />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showActualsAsNegative}
+                onChange={(e) => setShowActualsAsNegative(e.target.checked)}
+              />
+            }
+            label={
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>Show actuals as negative numbers</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  When enabled, expenses imported from QuickBooks are displayed as negative values (e.g., –$29,000) in red.
+                </Typography>
+              </Box>
+            }
+          />
+        </Paper>
       </Stack>
     </AppShell>
   )
