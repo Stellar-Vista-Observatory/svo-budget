@@ -1,6 +1,8 @@
 'use client'
 
 import { AppShell } from '@/components/layout/AppShell'
+import { applyActualSign } from '@/lib/formatting'
+import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import { Fragment, useEffect, useState } from 'react'
 import {
   Alert,
@@ -79,6 +81,7 @@ export default function BudgetVsActualReport() {
   const [report, setReport] = useState<ProjectReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
+  const { showActualsAsNegative } = useUserPreferences()
 
   useEffect(() => {
     fetch('/api/projects').then((r) => r.json()).then((d) => {
@@ -179,7 +182,9 @@ export default function BudgetVsActualReport() {
                 </Box>
                 <Box>
                   <Typography variant="caption" color="text.secondary">Total Actuals</Typography>
-                  <Typography sx={{ fontWeight: 700 }}>{fmt(report.totalSpent)}</Typography>
+                  <Typography sx={{ fontWeight: 700, color: showActualsAsNegative ? 'error.main' : undefined }}>
+                    {fmt(applyActualSign(report.totalSpent, showActualsAsNegative))}
+                  </Typography>
                 </Box>
                 <Box>
                   <Typography variant="caption" color="text.secondary">
@@ -231,7 +236,9 @@ export default function BudgetVsActualReport() {
                         <TableRow sx={{ bgcolor: '#f5f7fa', '& td': { fontWeight: 600 } }}>
                           <TableCell>{cat.name}</TableCell>
                           <TableCell align="right">{fmt(cat.totalBudget)}</TableCell>
-                          <TableCell align="right">{fmt(cat.totalSpent)}</TableCell>
+                          <TableCell align="right" sx={{ color: showActualsAsNegative ? 'error.main' : undefined }}>
+                            {fmt(applyActualSign(cat.totalSpent, showActualsAsNegative))}
+                          </TableCell>
                           <TableCell align="right" sx={{ color: remaining < 0 ? 'error.main' : 'inherit' }}>
                             {fmt(remaining)}
                           </TableCell>
@@ -287,7 +294,9 @@ export default function BudgetVsActualReport() {
                                       {actual.date} {actual.vendor ?? actual.memo ?? '—'}
                                     </TableCell>
                                     <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
-                                    <TableCell align="right">{fmt(actual.amount)}</TableCell>
+                                    <TableCell align="right" sx={{ color: showActualsAsNegative ? 'error.main' : undefined }}>
+                                      {fmt(applyActualSign(actual.amount, showActualsAsNegative))}
+                                    </TableCell>
                                     <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
                                     <TableCell align="right" sx={{ color: 'text.disabled' }}>—</TableCell>
                                   </TableRow>
@@ -303,7 +312,9 @@ export default function BudgetVsActualReport() {
                   <TableRow sx={{ '& td': { fontWeight: 700, borderTop: '2px solid', borderColor: 'primary.main' } }}>
                     <TableCell>TOTAL</TableCell>
                     <TableCell align="right">{fmt(report.totalEstimated)}</TableCell>
-                    <TableCell align="right">{fmt(report.totalSpent)}</TableCell>
+                    <TableCell align="right" sx={{ color: showActualsAsNegative ? 'error.main' : undefined }}>
+                      {fmt(applyActualSign(report.totalSpent, showActualsAsNegative))}
+                    </TableCell>
                     <TableCell align="right" sx={{ color: report.totalEstimated - report.totalSpent < 0 ? 'error.main' : 'inherit' }}>
                       {fmt(report.totalEstimated - report.totalSpent)}
                     </TableCell>
