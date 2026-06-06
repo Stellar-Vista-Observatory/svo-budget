@@ -35,7 +35,7 @@ describe('PATCH /api/funding-sources/[id]', () => {
   })
 
   it('updates and returns funding source', async () => {
-    const updated = { id: 'fs-1', name: 'Updated', color: '#3b82f6', allocatedTotal: 500 }
+    const updated = { id: 'fs-1', name: 'Updated', color: '#3b82f6', totalFunds: 500 }
     mockUpdate.mockResolvedValue(updated)
     const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
       method: 'PATCH',
@@ -45,6 +45,72 @@ describe('PATCH /api/funding-sources/[id]', () => {
     const res = await PATCH(req, { params })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual(updated)
+  })
+
+  it('updates totalFunds when provided', async () => {
+    mockUpdate.mockResolvedValue({ id: 'fs-1', name: 'Grant A', color: '#3b82f6', totalFunds: 25000 })
+    const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ totalFunds: 25000 }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PATCH(req, { params })
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'fs-1' }, data: { totalFunds: 25000 } })
+    )
+  })
+
+  it('rejects a negative totalFunds', async () => {
+    const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ totalFunds: -5 }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PATCH(req, { params })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/totalFunds/)
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it('updates a trimmed shortName when provided', async () => {
+    mockUpdate.mockResolvedValue({ id: 'fs-1', name: 'Grant A', shortName: 'BBF', color: '#3b82f6', totalFunds: 0 })
+    const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ shortName: '  BBF  ' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PATCH(req, { params })
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'fs-1' }, data: { shortName: 'BBF' } })
+    )
+  })
+
+  it('clears the shortName (stores null) when given a blank string', async () => {
+    mockUpdate.mockResolvedValue({ id: 'fs-1', name: 'Grant A', shortName: null, color: '#3b82f6', totalFunds: 0 })
+    const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ shortName: '   ' }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PATCH(req, { params })
+    expect(res.status).toBe(200)
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'fs-1' }, data: { shortName: null } })
+    )
+  })
+
+  it('rejects a non-string, non-null shortName', async () => {
+    const req = new NextRequest('http://localhost/api/funding-sources/fs-1', {
+      method: 'PATCH',
+      body: JSON.stringify({ shortName: 123 }),
+      headers: { 'Content-Type': 'application/json' },
+    })
+    const res = await PATCH(req, { params })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/shortName/)
+    expect(mockUpdate).not.toHaveBeenCalled()
   })
 })
 

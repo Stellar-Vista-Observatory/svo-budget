@@ -36,12 +36,13 @@ const makeProject = () => ({
           id: 'entry-1',
           name: 'Concrete',
           estimatedAmount: dec(1000),
+          bidStatus: 'bid',
           sortOrder: 0,
           allocations: [
             {
               id: 'alloc-1',
               allocatedAmount: dec(600),
-              fundingSource: { id: 'fs-1', name: 'Grant A', color: '#3b82f6', allocatedTotal: dec(600), qboClassId: 'cls-1', qboClassName: 'Grant A' },
+              fundingSource: { id: 'fs-1', name: 'Grant A', shortName: null, color: '#3b82f6', totalFunds: dec(5000), qboClassId: 'cls-1', qboClassName: 'Grant A' },
             },
           ],
         },
@@ -54,6 +55,7 @@ const makeProject = () => ({
           vendor: 'Home Depot',
           memo: null,
           qboTransactionType: 'Purchase',
+          bidStatus: 'not_bid',
           fundingSourceId: 'fs-1',
           fundingSource: { id: 'fs-1', name: 'Grant A', color: '#3b82f6' },
         },
@@ -93,12 +95,13 @@ describe('GET /api/projects/[id]', () => {
       id: 'entry-2',
       name: 'Steel',
       estimatedAmount: dec(500),
+      bidStatus: 'bid',
       sortOrder: 1,
       allocations: [
         {
           id: 'alloc-2',
           allocatedAmount: dec(200),
-          fundingSource: { id: 'fs-1', name: 'Grant A', color: '#3b82f6', allocatedTotal: dec(800), qboClassId: 'cls-1', qboClassName: 'Grant A' },
+          fundingSource: { id: 'fs-1', name: 'Grant A', shortName: null, color: '#3b82f6', totalFunds: dec(5000), qboClassId: 'cls-1', qboClassName: 'Grant A' },
         },
       ],
     })
@@ -108,6 +111,7 @@ describe('GET /api/projects/[id]', () => {
     const body = await res.json()
     expect(body.fundingSources).toHaveLength(1)
     expect(body.fundingSources[0].allocatedTotal).toBe(800)
+    expect(body.fundingSources[0].totalFunds).toBe(5000)
   })
 
   it('shapes category and actuals data correctly', async () => {
@@ -120,6 +124,16 @@ describe('GET /api/projects/[id]', () => {
     expect(cat.totalSpent).toBe(400)
     expect(cat.totalAllocated).toBe(600)
     expect(cat.actuals[0].date).toBe('2024-03-01')
+  })
+
+  it('includes bidStatus on budget entries and actuals', async () => {
+    mockFindUnique.mockResolvedValue(makeProject())
+    const req = new NextRequest('http://localhost/api/projects/p1')
+    const res = await GET(req, { params })
+    const body = await res.json()
+    const cat = body.categories[0]
+    expect(cat.budgetEntries[0].bidStatus).toBe('bid')
+    expect(cat.actuals[0].bidStatus).toBe('not_bid')
   })
 })
 

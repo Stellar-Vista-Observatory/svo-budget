@@ -11,12 +11,22 @@ export async function PATCH(
 
   const { id } = await params
   try {
-    const body = await request.json() as { name?: string; color?: string; allocatedTotal?: number }
+    const body = await request.json() as { name?: string; color?: string; totalFunds?: number; shortName?: unknown }
 
-    if (body.allocatedTotal !== undefined) {
-      if (typeof body.allocatedTotal !== 'number' || !isFinite(body.allocatedTotal) || body.allocatedTotal < 0) {
-        return NextResponse.json({ error: 'allocatedTotal must be a non-negative number' }, { status: 400 })
+    if (body.totalFunds !== undefined) {
+      if (typeof body.totalFunds !== 'number' || !isFinite(body.totalFunds) || body.totalFunds < 0) {
+        return NextResponse.json({ error: 'totalFunds must be a non-negative number' }, { status: 400 })
       }
+    }
+
+    // A blank custom short name clears the override, falling back to the derived acronym.
+    let shortNameUpdate: string | null | undefined
+    if (body.shortName !== undefined) {
+      if (body.shortName !== null && typeof body.shortName !== 'string') {
+        return NextResponse.json({ error: 'shortName must be a string or null' }, { status: 400 })
+      }
+      const trimmed = typeof body.shortName === 'string' ? body.shortName.trim() : ''
+      shortNameUpdate = trimmed === '' ? null : trimmed
     }
 
     const updated = await prisma.fundingSource.update({
@@ -24,7 +34,8 @@ export async function PATCH(
       data: {
         ...(body.name !== undefined && { name: body.name }),
         ...(body.color !== undefined && { color: body.color }),
-        ...(body.allocatedTotal !== undefined && { allocatedTotal: body.allocatedTotal }),
+        ...(body.totalFunds !== undefined && { totalFunds: body.totalFunds }),
+        ...(shortNameUpdate !== undefined && { shortName: shortNameUpdate }),
       },
     })
     return NextResponse.json(updated)

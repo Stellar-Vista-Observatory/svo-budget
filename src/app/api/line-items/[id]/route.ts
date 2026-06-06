@@ -19,8 +19,9 @@ export async function PATCH(
       data: {
         ...(patch.estimatedAmount !== undefined && { estimatedAmount: patch.estimatedAmount }),
         ...(patch.name !== undefined && { name: patch.name.trim() }),
+        ...(patch.bidStatus !== undefined && { bidStatus: patch.bidStatus }),
       },
-      select: { id: true, name: true, estimatedAmount: true },
+      select: { id: true, name: true, estimatedAmount: true, bidStatus: true },
     })
     return NextResponse.json(updated)
   } catch (err) {

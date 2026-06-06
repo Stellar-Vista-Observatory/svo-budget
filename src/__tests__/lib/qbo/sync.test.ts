@@ -9,7 +9,7 @@ jest.mock('@/lib/prisma', () => ({
   prisma: {
     project: { findMany: jest.fn(), findFirst: jest.fn(), create: jest.fn() },
     category: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
-    fundingSource: { findMany: jest.fn(), upsert: jest.fn() },
+    fundingSource: { findMany: jest.fn(), upsert: jest.fn(), deleteMany: jest.fn() },
     actual: { upsert: jest.fn(), deleteMany: jest.fn() },
     qboConnection: { update: jest.fn() },
   },
@@ -39,6 +39,7 @@ beforeEach(() => {
   mockGetValidConnection.mockResolvedValue(fakeConn)
   ;(mockPrisma.qboConnection.update as jest.Mock).mockResolvedValue(fakeConn)
   ;(mockPrisma.fundingSource.upsert as jest.Mock).mockResolvedValue({})
+  ;(mockPrisma.fundingSource.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
   ;(mockPrisma.project.findFirst as jest.Mock).mockResolvedValue({
     id: 'catch-1', projectType: 'catch_all', name: 'All Other Expenses', qboAccountId: null,
   })
@@ -175,6 +176,51 @@ describe('syncAll — transactions', () => {
     expect(upsertCall.create.qboTransactionId).toBe('Purchase-txn-1-L0')
   })
 
+  it('preserves an app-set bidStatus on existing actuals across re-sync (upsert update must not touch bidStatus)', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+      { Id: 'child-1', Name: 'Foundation', FullyQualifiedName: 'Construction:Foundation', ParentRef: { value: 'parent-1' }, Active: true, AccountType: 'Expense' },
+    ]
+    const purchases = [
+      {
+        Id: 'txn-1',
+        TxnDate: '2024-03-01',
+        EntityRef: { name: 'Home Depot' },
+        Line: [
+          {
+            LineNum: 1,
+            Amount: 500,
+            DetailType: 'AccountBasedExpenseLineDetail',
+            AccountBasedExpenseLineDetail: { AccountRef: { value: 'child-1' } },
+          },
+        ],
+      },
+    ]
+
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(purchases)
+      .mockResolvedValueOnce([])
+
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([
+      { id: 'cat-1', qboAccountId: 'child-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.actual.upsert as jest.Mock).mockResolvedValue({})
+
+    await syncAll()
+
+    const upsertCall = (mockPrisma.actual.upsert as jest.Mock).mock.calls[0][0]
+    // The update branch runs for already-existing rows; it must not overwrite
+    // a bidStatus the user set in our app.
+    expect(upsertCall.update).not.toHaveProperty('bidStatus')
+  })
+
   it('maps deep sub-account transactions to their ancestor category', async () => {
     const accounts = [
       { Id: 'root', Name: 'Project', FullyQualifiedName: 'Project', Active: true, AccountType: 'Expense' },
@@ -220,6 +266,66 @@ describe('syncAll — transactions', () => {
     expect(result.actualsUpserted).toBe(1)
     const upsertCall = (mockPrisma.actual.upsert as jest.Mock).mock.calls[0][0]
     expect(upsertCall.create.categoryId).toBe('cat-1')
+  })
+})
+
+describe('syncAll — funding sources', () => {
+  it('preserves an app-set totalFunds on existing funding sources across re-sync (upsert update must not touch totalFunds)', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+    ]
+    const classes = [{ Id: 'class-1', Name: 'Grant A', Active: true }]
+
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce(classes)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([
+      { qboClassId: 'class-1' },
+    ])
+
+    await syncAll()
+
+    const upsertCall = (mockPrisma.fundingSource.upsert as jest.Mock).mock.calls[0][0]
+    // The update branch runs for already-existing funding sources; it must not
+    // overwrite the app-managed fields (totalFunds, custom shortName) on re-sync.
+    expect(upsertCall.update).not.toHaveProperty('totalFunds')
+    expect(upsertCall.update).not.toHaveProperty('shortName')
+  })
+
+  it('deletes a funding source whose QBO class vanished, but only when it has no allocations and no actuals', async () => {
+    const accounts = [
+      { Id: 'parent-1', Name: 'Construction', FullyQualifiedName: 'Construction', Active: true, AccountType: 'Expense' },
+    ]
+    const classes = [{ Id: 'class-active', Name: 'Active Grant', Active: true }]
+
+    mockQboQuery
+      .mockResolvedValueOnce(accounts)
+      .mockResolvedValueOnce(classes)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    ;(mockPrisma.project.findMany as jest.Mock).mockResolvedValue([
+      { id: 'proj-1', projectType: 'claimed', qboAccountId: 'parent-1' },
+    ])
+    ;(mockPrisma.category.upsert as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.fundingSource.findMany as jest.Mock).mockResolvedValue([])
+
+    await syncAll()
+
+    expect(mockPrisma.fundingSource.deleteMany).toHaveBeenCalledWith({
+      where: {
+        qboClassId: { notIn: ['class-active'] },
+        allocations: { none: {} },
+        actuals: { none: {} },
+      },
+    })
   })
 })
 

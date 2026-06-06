@@ -26,10 +26,13 @@ interface AllocationData {
   allocatedAmount: number
 }
 
+type BidStatusValue = 'bid' | 'not_bid' | null
+
 interface BudgetEntryData {
   id: string
   name: string
   estimatedAmount: number
+  bidStatus: BidStatusValue
   allocations: AllocationData[]
 }
 
@@ -40,6 +43,7 @@ interface ActualData {
   vendor: string | null
   memo: string | null
   qboTransactionType: string
+  bidStatus: BidStatusValue
   fundingSourceId: string | null
   fundingSourceName: string | null
   fundingSourceColor: string | null
@@ -60,7 +64,9 @@ interface CategoryData {
 interface FundingSourceData {
   id: string
   name: string
+  shortName: string | null
   color: string
+  totalFunds: number
   allocatedTotal: number
   spent: number
   remaining: number

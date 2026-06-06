@@ -2,6 +2,7 @@
 
 import { AppShell } from '@/components/layout/AppShell'
 import { useUserPreferences } from '@/lib/UserPreferencesProvider'
+import { fundingSourceLabel } from '@/lib/funding-source-label'
 import { useEffect, useState, useCallback } from 'react'
 import {
   Alert,
@@ -11,6 +12,7 @@ import {
   Divider,
   FormControlLabel,
   IconButton,
+  InputAdornment,
   MenuItem,
   Paper,
   Select,
@@ -49,6 +51,14 @@ interface Project {
   qboAccountId: string | null
 }
 
+interface FundingSource {
+  id: string
+  name: string
+  shortName: string | null
+  color: string
+  totalFunds: number
+}
+
 export default function SettingsPage() {
   const { showActualsAsNegative, setShowActualsAsNegative } = useUserPreferences()
 
@@ -64,6 +74,10 @@ export default function SettingsPage() {
   const [projectCreateError, setProjectCreateError] = useState<string | null>(null)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
+  const [fundingSources, setFundingSources] = useState<FundingSource[]>([])
+  const [fundsDraft, setFundsDraft] = useState<Record<string, string>>({})
+  const [shortNameDraft, setShortNameDraft] = useState<Record<string, string>>({})
+  const [savingFunds, setSavingFunds] = useState<string | null>(null)
 
   const loadStatus = useCallback(async () => {
     const res = await fetch('/api/qbo/status')
@@ -76,6 +90,16 @@ export default function SettingsPage() {
     if (res.ok) {
       const data = await res.json()
       setProjects(data.projects ?? [])
+    }
+  }, [])
+
+  const loadFundingSources = useCallback(async () => {
+    const res = await fetch('/api/funding-sources')
+    if (res.ok) {
+      const data: FundingSource[] = await res.json()
+      setFundingSources(data)
+      setFundsDraft(Object.fromEntries(data.map((fs) => [fs.id, String(fs.totalFunds)])))
+      setShortNameDraft(Object.fromEntries(data.map((fs) => [fs.id, fs.shortName ?? ''])))
     }
   }, [])
 
@@ -97,6 +121,7 @@ export default function SettingsPage() {
   useEffect(() => {
     loadStatus()
     loadProjects()
+    loadFundingSources()
     const params = new URLSearchParams(window.location.search)
     if (params.get('connected') === 'true') {
       setSyncResult('Connected to QuickBooks successfully.')
@@ -106,13 +131,26 @@ export default function SettingsPage() {
       setSyncResult('QuickBooks connection failed. Please try again.')
       window.history.replaceState({}, '', '/settings')
     }
-  }, [loadStatus, loadProjects])
+  }, [loadStatus, loadProjects, loadFundingSources])
 
   useEffect(() => {
     if (status?.connected) {
       loadAccountsAndProjects()
     }
   }, [status?.connected, loadAccountsAndProjects])
+
+  async function handleSaveFundingSource(id: string) {
+    const value = Number(fundsDraft[id])
+    if (!isFinite(value) || value < 0) return
+    setSavingFunds(id)
+    await fetch(`/api/funding-sources/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ totalFunds: value, shortName: shortNameDraft[id] ?? '' }),
+    })
+    await loadFundingSources()
+    setSavingFunds(null)
+  }
 
   async function handleRenameProject(id: string) {
     if (!editingName.trim()) return
@@ -331,6 +369,58 @@ export default function SettingsPage() {
             <Alert severity="error" sx={{ mt: 1 }}>{projectCreateError}</Alert>
           )}
         </Paper>
+
+        {/* Funding Sources Section */}
+        {fundingSources.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>Funding Sources</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Funding sources are synced from QuickBooks classes. Record the total funds each source
+              provides — the full amount at origination, before any allocation or spending.
+            </Typography>
+
+            <Stack spacing={1.25}>
+              {fundingSources.map((fs) => {
+                const fundsChanged = fundsDraft[fs.id] !== String(fs.totalFunds)
+                const shortChanged = (shortNameDraft[fs.id] ?? '').trim() !== (fs.shortName ?? '')
+                const changed = fundsChanged || shortChanged
+                return (
+                  <Stack key={fs.id} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: fs.color, flexShrink: 0 }} />
+                    <Typography variant="body2" sx={{ flex: 1 }}>{fs.name}</Typography>
+                    <TextField
+                      value={shortNameDraft[fs.id] ?? ''}
+                      onChange={(e) => setShortNameDraft((d) => ({ ...d, [fs.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFundingSource(fs.id) }}
+                      size="small"
+                      label="Short name"
+                      placeholder={fundingSourceLabel(fs.name, null)}
+                      sx={{ width: 130 }}
+                    />
+                    <TextField
+                      value={fundsDraft[fs.id] ?? ''}
+                      onChange={(e) => setFundsDraft((d) => ({ ...d, [fs.id]: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFundingSource(fs.id) }}
+                      size="small"
+                      type="number"
+                      label="Total funds"
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">$</InputAdornment> } }}
+                      sx={{ width: 170 }}
+                    />
+                    <Button
+                      size="small"
+                      variant="contained"
+                      disabled={!changed || savingFunds === fs.id}
+                      onClick={() => handleSaveFundingSource(fs.id)}
+                    >
+                      {savingFunds === fs.id ? 'Saving…' : 'Save'}
+                    </Button>
+                  </Stack>
+                )
+              })}
+            </Stack>
+          </Paper>
+        )}
 
         {/* Account Claims Section */}
         {status?.connected && accounts.length > 0 && (

@@ -213,13 +213,26 @@ async function syncFundingSources(classes: QboClass[]): Promise<void> {
       create: {
         name: cls.Name,
         color: COLOR_PALETTE[newColorIdx % COLOR_PALETTE.length],
-        allocatedTotal: 0,
+        totalFunds: 0,
         qboClassId: cls.Id,
         qboClassName: cls.Name,
       },
     })
     if (isNew) newColorIdx++
   }
+
+  // QBO is the source of truth for which funding sources exist. When a class
+  // disappears from QBO (deleted or deactivated), remove its funding source —
+  // but only if nothing depends on it, so we never silently cascade-delete a
+  // user's allocations or orphan their actuals.
+  const activeClassIds = classes.filter((cls) => cls.Active).map((cls) => cls.Id)
+  await prisma.fundingSource.deleteMany({
+    where: {
+      qboClassId: { notIn: activeClassIds },
+      allocations: { none: {} },
+      actuals: { none: {} },
+    },
+  })
 }
 
 async function syncTransactions(

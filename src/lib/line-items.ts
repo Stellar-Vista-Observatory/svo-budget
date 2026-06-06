@@ -1,6 +1,13 @@
+export type BidStatusValue = 'bid' | 'not_bid' | null
+
 interface BudgetEntryPatch {
   name?: string
   estimatedAmount?: number
+  bidStatus?: BidStatusValue
+}
+
+export function isValidBidStatus(value: unknown): value is BidStatusValue {
+  return value === null || value === 'bid' || value === 'not_bid'
 }
 
 export function validateBudgetEntryPatch(body: BudgetEntryPatch): BudgetEntryPatch {
@@ -13,6 +20,9 @@ export function validateBudgetEntryPatch(body: BudgetEntryPatch): BudgetEntryPat
     if (typeof body.name !== 'string' || body.name.trim().length === 0) {
       throw new Error('name must be a non-empty string')
     }
+  }
+  if (body.bidStatus !== undefined && !isValidBidStatus(body.bidStatus)) {
+    throw new Error('bidStatus must be "bid", "not_bid", or null')
   }
   return body
 }

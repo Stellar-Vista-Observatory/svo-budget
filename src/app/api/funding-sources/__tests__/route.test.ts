@@ -25,11 +25,15 @@ describe('GET /api/funding-sources', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns funding sources when authenticated', async () => {
-    const sources = [{ id: 'fs-1', name: 'Grant A', color: '#3b82f6', allocatedTotal: 500 }]
+  it('returns funding sources with totalFunds coerced to a number (not a Decimal string)', async () => {
+    // Prisma returns Decimal objects for totalFunds; they serialize to strings
+    // unless converted, which breaks numeric summing on the client.
+    const sources = [{ id: 'fs-1', name: 'Grant A', shortName: 'GA', color: '#3b82f6', totalFunds: { valueOf: () => '500' } }]
     mockFindMany.mockResolvedValue(sources)
     const res = await GET()
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual(sources)
+    const body = await res.json()
+    expect(body).toEqual([{ id: 'fs-1', name: 'Grant A', shortName: 'GA', color: '#3b82f6', totalFunds: 500 }])
+    expect(typeof body[0].totalFunds).toBe('number')
   })
 })

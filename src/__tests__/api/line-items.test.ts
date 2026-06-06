@@ -24,4 +24,20 @@ describe('validateBudgetEntryPatch', () => {
   it('rejects empty name', () => {
     expect(() => validateBudgetEntryPatch({ name: '  ' })).toThrow('name must be a non-empty string')
   })
+
+  it('accepts bidStatus "bid"', () => {
+    expect(validateBudgetEntryPatch({ bidStatus: 'bid' })).toEqual({ bidStatus: 'bid' })
+  })
+
+  it('accepts bidStatus "not_bid"', () => {
+    expect(validateBudgetEntryPatch({ bidStatus: 'not_bid' })).toEqual({ bidStatus: 'not_bid' })
+  })
+
+  it('accepts null bidStatus to clear it', () => {
+    expect(validateBudgetEntryPatch({ bidStatus: null })).toEqual({ bidStatus: null })
+  })
+
+  it('rejects an invalid bidStatus value', () => {
+    expect(() => validateBudgetEntryPatch({ bidStatus: 'maybe' as never })).toThrow('bidStatus')
+  })
 })

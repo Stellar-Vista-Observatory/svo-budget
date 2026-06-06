@@ -3,6 +3,11 @@
 import React, { useState, useRef } from 'react'
 import { useToast } from '@/components/ToastProvider'
 import { applyActualSign } from '@/lib/formatting'
+import { type BidStatusValue, nextBidStatus, bidStatusLabel } from '@/lib/bid-status'
+import { fundingSourceLabel } from '@/lib/funding-source-label'
+import { computeFundingSourceTotals } from '@/lib/funding-source-summary'
+import { applyLineItemFilter, type LineItemFilterMode } from '@/lib/line-item-filters'
+import { roundDollars } from '@/lib/money'
 import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import {
   Box,
@@ -27,6 +32,7 @@ import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
 import LockIcon from '@mui/icons-material/Lock'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
+import PriceCheckIcon from '@mui/icons-material/PriceCheck'
 
 interface AllocationData {
   id: string
@@ -40,6 +46,7 @@ interface BudgetEntryData {
   id: string
   name: string
   estimatedAmount: number
+  bidStatus: BidStatusValue
   allocations: AllocationData[]
 }
 
@@ -50,6 +57,7 @@ interface ActualData {
   vendor: string | null
   memo: string | null
   qboTransactionType: string
+  bidStatus: BidStatusValue
   fundingSourceId: string | null
   fundingSourceName: string | null
   fundingSourceColor: string | null
@@ -70,8 +78,9 @@ interface CategoryData {
 interface FundingSourceOption {
   id: string
   name: string
+  shortName: string | null
   color: string
-  allocatedTotal: number
+  totalFunds: number
 }
 
 interface LineItemsTableProps {
@@ -85,11 +94,6 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n)
 
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 100))
-
-function fsLabel(name: string): string {
-  if (/svo\s*funds?/i.test(name)) return 'SVO'
-  return name.replace(/[^A-Z]/g, '')
-}
 
 function fmtDate(iso: string): string {
   const [y, m, d] = iso.split('-')
@@ -245,6 +249,49 @@ function AllocationBar({
   )
 }
 
+// ── Bid Status Chip ───────────────────────────────────────────────────────────
+
+function BidChip({ status, onChange }: { status: BidStatusValue; onChange: (next: BidStatusValue) => void }) {
+  // Optimistic value so the chip updates instantly on click instead of waiting
+  // for the PATCH + project refetch to round-trip. `undefined` means "no pending
+  // optimistic value"; `null` is a real, displayable status.
+  const [optimistic, setOptimistic] = useState<BidStatusValue | undefined>(undefined)
+  if (optimistic !== undefined && status === optimistic) setOptimistic(undefined)
+
+  const displayed = optimistic !== undefined ? optimistic : status
+  const cfg =
+    displayed === 'bid'
+      ? { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' }
+      : displayed === 'not_bid'
+        ? { bg: '#eceff1', color: '#546e7a', border: '#cfd8dc' }
+        : { bg: 'transparent', color: '#bbb', border: '#e0e0e0' }
+
+  return (
+    <Tooltip title="Bid status — click to cycle (Bid → Not bid → unset)">
+      <Chip
+        size="small"
+        label={bidStatusLabel(displayed)}
+        onClick={(e) => {
+          e.stopPropagation()
+          const next = nextBidStatus(displayed)
+          setOptimistic(next)
+          onChange(next)
+        }}
+        sx={{
+          height: 18,
+          fontSize: '0.62rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          bgcolor: cfg.bg,
+          color: cfg.color,
+          border: `1px solid ${cfg.border}`,
+          '& .MuiChip-label': { px: 0.75 },
+        }}
+      />
+    </Tooltip>
+  )
+}
+
 // ── Budget Section ────────────────────────────────────────────────────────────
 
 function BudgetSection({
@@ -255,6 +302,7 @@ function BudgetSection({
   onUpdateAllocation,
   onAddEntry,
   onDeleteEntry,
+  onSetEntryBid,
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
@@ -263,6 +311,7 @@ function BudgetSection({
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
   onDeleteEntry: (id: string) => void
+  onSetEntryBid: (id: string, status: BidStatusValue) => void
 }) {
   const budgetInitialOpen = signal.action !== 'collapse-all' && signal.action !== 'focus-actuals' && signal.action !== 'summary'
   const [open, setOpen] = useState(budgetInitialOpen)
@@ -303,6 +352,7 @@ function BudgetSection({
   return (
     <>
       <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={subHdrSx} />
         <TableCell sx={{ ...subHdrSx, pl: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <IconButton size="small" sx={{ p: 0.15 }}>
@@ -356,6 +406,12 @@ function BudgetSection({
 
         return (
           <TableRow key={entry.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#eef6ff' } }}>
+            <TableCell align="center" sx={{ ...baseCellSx, px: 0.5 }}>
+              <BidChip
+                status={entry.bidStatus}
+                onChange={(next) => onSetEntryBid(entry.id, next)}
+              />
+            </TableCell>
             <EditableCell
               value={entry.name}
               align="left"
@@ -414,7 +470,8 @@ function BudgetSection({
 
       {open && adding && (
         <TableRow sx={{ bgcolor: '#fafafa' }}>
-          <TableCell sx={{ ...baseCellSx, pl: 4, p: 0 }} colSpan={fundingSources.length + 6}>
+          <TableCell sx={baseCellSx} />
+          <TableCell sx={{ ...baseCellSx, pl: 4, p: 0 }} colSpan={fundingSources.length + 7}>
             <Input
               inputRef={addRef}
               placeholder="New line item name…"
@@ -441,10 +498,12 @@ function ActualsSection({
   actuals,
   fundingSources,
   signal,
+  onSetActualBid,
 }: {
   actuals: ActualData[]
   fundingSources: FundingSourceOption[]
   signal: { count: number; action: ViewAction }
+  onSetActualBid: (id: string, status: BidStatusValue) => void
 }) {
   const actualsInitialOpen = signal.action !== 'collapse-all' && signal.action !== 'focus-budget' && signal.action !== 'summary'
   const [open, setOpen] = useState(actualsInitialOpen)
@@ -473,6 +532,7 @@ function ActualsSection({
   return (
     <>
       <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={subHdrSx} />
         <TableCell sx={{ ...subHdrSx, pl: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <IconButton size="small" sx={{ p: 0.15 }}>
@@ -510,6 +570,9 @@ function ActualsSection({
 
       {open && actuals.map((a) => (
         <TableRow key={a.id} sx={{ bgcolor: '#fafafa', '&:hover': { bgcolor: '#fffde7' } }}>
+          <TableCell align="center" sx={{ ...baseCellSx, px: 0.5 }}>
+            <BidChip status={a.bidStatus} onChange={(next) => onSetActualBid(a.id, next)} />
+          </TableCell>
           <TableCell sx={{ ...baseCellSx, pl: 4 }}>
             <Tooltip title={a.memo || ''} disableHoverListener={!a.memo} arrow>
               <Typography sx={{ fontSize: '0.78rem' }}>
@@ -556,6 +619,8 @@ function CategoryRow({
   onUpdateAllocation,
   onAddEntry,
   onDeleteEntry,
+  onSetEntryBid,
+  onSetActualBid,
 }: {
   category: CategoryData
   fundingSources: FundingSourceOption[]
@@ -564,6 +629,8 @@ function CategoryRow({
   onUpdateAllocation: (entryId: string, fundingSourceId: string, existingAllocId: string | null, amount: number) => void
   onAddEntry: (categoryId: string, name: string) => void
   onDeleteEntry: (id: string) => void
+  onSetEntryBid: (id: string, status: BidStatusValue) => void
+  onSetActualBid: (id: string, status: BidStatusValue) => void
 }) {
   const [open, setOpen] = useState(true)
   const [seenSignal, setSeenSignal] = useState(signal.count)
@@ -589,7 +656,7 @@ function CategoryRow({
     const spent = category.actuals
       .filter((a) => a.fundingSourceId === fs.id)
       .reduce((s, a) => s + a.amount, 0)
-    fsRemaining[fs.id] = allocated - spent
+    fsRemaining[fs.id] = roundDollars(allocated - spent)
   }
 
   const hdrSx = {
@@ -607,6 +674,7 @@ function CategoryRow({
   return (
     <>
       <TableRow sx={{ cursor: 'pointer' }} onClick={() => setOpen((o) => !o)}>
+        <TableCell sx={hdrSx} />
         <TableCell sx={hdrSx}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <IconButton size="small" sx={{ p: 0.2 }}>
@@ -706,15 +774,89 @@ function CategoryRow({
             onUpdateAllocation={onUpdateAllocation}
             onAddEntry={onAddEntry}
             onDeleteEntry={onDeleteEntry}
+            onSetEntryBid={onSetEntryBid}
           />
           <ActualsSection
             actuals={category.actuals}
             fundingSources={fundingSources}
             signal={signal}
+            onSetActualBid={onSetActualBid}
           />
         </>
       )}
     </>
+  )
+}
+
+// ── Funding Sources Summary ───────────────────────────────────────────────────
+
+function FundingSourceSummary({ categories, fundingSources }: { categories: CategoryData[]; fundingSources: FundingSourceOption[] }) {
+  const { showActualsAsNegative } = useUserPreferences()
+  const { rows, totals } = computeFundingSourceTotals(categories, fundingSources.map((fs) => fs.id))
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  const totalFundsAll = fundingSources.reduce((s, fs) => s + fs.totalFunds, 0)
+
+  const headSx = { fontSize: '0.66rem', fontWeight: 700, color: 'text.secondary', py: 0.5, px: 1.25, textTransform: 'uppercase' as const, letterSpacing: '0.04em', whiteSpace: 'nowrap' as const }
+  const cellSx = { fontSize: '0.78rem', py: 0.4, px: 1.25, whiteSpace: 'nowrap' as const }
+  const dash = <span style={{ color: '#bbb' }}>—</span>
+  const withdrawnText = (n: number) => (n > 0 ? fmt(applyActualSign(n, showActualsAsNegative)) : dash)
+
+  return (
+    <Box sx={{ mb: 1.5 }}>
+      <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: '#f0f4f8' }}>
+              <TableCell sx={headSx}>Funding Source</TableCell>
+              <TableCell align="right" sx={headSx}>Total Funds</TableCell>
+              <TableCell align="right" sx={headSx}>Allocated</TableCell>
+              <TableCell align="right" sx={headSx}>Withdrawn</TableCell>
+              <TableCell align="right" sx={headSx}>
+                <Box>Remaining</Box>
+                <Box sx={{ fontSize: '0.58rem', fontWeight: 600, color: 'text.disabled', textTransform: 'none', letterSpacing: 0 }}>Funds−Withdrawn</Box>
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {fundingSources.map((fs) => {
+              const row = byId.get(fs.id) ?? { allocated: 0, withdrawn: 0 }
+              const hasFunds = fs.totalFunds > 0
+              const remaining = roundDollars(fs.totalFunds - row.withdrawn)
+              return (
+                <TableRow key={fs.id}>
+                  <TableCell sx={cellSx}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: fs.color, flexShrink: 0 }} />
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 600 }}>{fundingSourceLabel(fs.name, fs.shortName)}</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>{fs.name}</Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell align="right" sx={cellSx}>{hasFunds ? fmt(fs.totalFunds) : dash}</TableCell>
+                  <TableCell align="right" sx={cellSx}>{row.allocated > 0 ? fmt(row.allocated) : dash}</TableCell>
+                  <TableCell align="right" sx={{ ...cellSx, color: row.withdrawn > 0 && showActualsAsNegative ? 'error.main' : undefined }}>
+                    {withdrawnText(row.withdrawn)}
+                  </TableCell>
+                  <TableCell align="right" sx={{ ...cellSx, fontWeight: 600, color: hasFunds && remaining < 0 ? '#dc2626' : 'inherit' }}>
+                    {hasFunds ? fmt(remaining) : dash}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+            <TableRow sx={{ bgcolor: '#e8eaf6' }}>
+              <TableCell sx={{ ...cellSx, fontWeight: 700 }}>TOTAL</TableCell>
+              <TableCell align="right" sx={{ ...cellSx, fontWeight: 700 }}>{fmt(totalFundsAll)}</TableCell>
+              <TableCell align="right" sx={{ ...cellSx, fontWeight: 700 }}>{fmt(totals.allocated)}</TableCell>
+              <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: totals.withdrawn > 0 && showActualsAsNegative ? 'error.main' : undefined }}>
+                {fmt(applyActualSign(totals.withdrawn, showActualsAsNegative))}
+              </TableCell>
+              <TableCell align="right" sx={{ ...cellSx, fontWeight: 700, color: roundDollars(totalFundsAll - totals.withdrawn) < 0 ? '#dc2626' : 'inherit' }}>
+                {fmt(roundDollars(totalFundsAll - totals.withdrawn))}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
   )
 }
 
@@ -728,6 +870,11 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
   const coverageDelta = totalBudget - totalAllocated
   const remaining = totalBudget - totalActual
 
+  // Per-source grand totals: net = allocated − withdrawn, matching the
+  // allocated−spent figure shown in each category header row.
+  const { rows: fsRows } = computeFundingSourceTotals(categories, fundingSources.map((fs) => fs.id))
+  const fsNetById = new Map(fsRows.map((r) => [r.id, { net: roundDollars(r.allocated - r.withdrawn), active: r.allocated !== 0 || r.withdrawn !== 0 }]))
+
   const cellSx = {
     py: 1, fontWeight: 700, fontSize: '0.82rem', px: 1,
     bgcolor: '#e8eaf6', borderTop: '3px solid', borderColor: 'primary.main',
@@ -735,11 +882,21 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
 
   return (
     <TableRow>
+      <TableCell sx={cellSx} />
       <TableCell sx={cellSx}>TOTAL</TableCell>
       <TableCell align="right" sx={cellSx}>{fmt(totalBudget)}</TableCell>
-      {fundingSources.map((fs) => (
-        <TableCell key={fs.id} sx={{ ...cellSx, borderLeft: `2px solid ${fs.color}44` }} />
-      ))}
+      {fundingSources.map((fs) => {
+        const fsTotal = fsNetById.get(fs.id) ?? { net: 0, active: false }
+        return (
+          <TableCell
+            key={fs.id}
+            align="right"
+            sx={{ ...cellSx, borderLeft: `2px solid ${fs.color}44`, color: fsTotal.net < 0 ? '#dc2626' : undefined }}
+          >
+            {fsTotal.active ? fmt(fsTotal.net) : <span style={{ color: '#bbb' }}>—</span>}
+          </TableCell>
+        )
+      })}
       <TableCell align="right" sx={cellSx}>{fmt(totalAllocated)}</TableCell>
       <TableCell align="right" sx={{ ...cellSx, color: coverageDelta === 0 ? '#2e7d32' : coverageDelta > 0 ? '#e65100' : '#1565c0' }}>
         {coverageDelta === 0 ? '—' : fmt(Math.abs(coverageDelta)) + (coverageDelta > 0 ? ' gap' : ' over')}
@@ -760,15 +917,35 @@ function TotalsRow({ categories, fundingSources }: { categories: CategoryData[];
 export function LineItemsTable({ categories, fundingSources: rawFundingSources, onUpdate }: LineItemsTableProps) {
   const fundingSources = React.useMemo(() => sortFundingSources(rawFundingSources), [rawFundingSources])
   const [signal, setSignal] = useState<{ count: number; action: ViewAction }>({ count: 0, action: 'expand-all' })
+  const [filterMode, setFilterMode] = useState<LineItemFilterMode>('none')
   const { toast } = useToast()
 
+  // Momentary view filters ('gap' | 'bid' | 'not_bid') narrow the table to the
+  // matching rows with category totals recomputed from what's left. The filter
+  // is cleared by any of the view-action buttons (see `dispatch`), matching the
+  // momentary feel of the other buttons.
+  const displayCategories = React.useMemo(
+    () => applyLineItemFilter(categories, filterMode),
+    [categories, filterMode]
+  )
+
+  // View actions are momentary and also reset any active filter — clicking any
+  // of them is the "off switch" for the filters.
   function dispatch(action: ViewAction) {
     setSignal((s) => ({ count: s.count + 1, action }))
+    setFilterMode('none')
+  }
+
+  // Filter buttons apply their mode and expand everything so the matching rows
+  // are immediately visible.
+  function applyFilter(mode: LineItemFilterMode) {
+    setFilterMode(mode)
+    setSignal((s) => ({ count: s.count + 1, action: 'expand-all' }))
   }
 
   function handleResponse(res: Response, successMsg: string) {
     if (res.ok) {
-      toast(successMsg)
+      if (successMsg) toast(successMsg)
       onUpdate()
     } else {
       res.json().then((d) => toast(d.error ?? 'Operation failed', 'error')).catch(() => toast('Operation failed', 'error'))
@@ -793,6 +970,26 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
           ? fetch(`/api/line-items/${entryId}/allocations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fundingSourceId, allocatedAmount: amount }) })
           : null
     if (req) req.then((r) => handleResponse(r, 'Allocation updated')).catch(() => toast('Network error', 'error'))
+  }
+
+  function setEntryBid(id: string, status: BidStatusValue) {
+    // No success toast: the chip already reflects the change optimistically.
+    fetch(`/api/line-items/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bidStatus: status }),
+    }).then((r) => handleResponse(r, ''))
+      .catch(() => toast('Network error', 'error'))
+  }
+
+  function setActualBid(id: string, status: BidStatusValue) {
+    // No success toast: the chip already reflects the change optimistically.
+    fetch(`/api/actuals/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bidStatus: status }),
+    }).then((r) => handleResponse(r, ''))
+      .catch(() => toast('Network error', 'error'))
   }
 
   function addEntry(categoryId: string, name: string) {
@@ -820,20 +1017,36 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 0.75 }}>
-        <ButtonGroup size="small" variant="outlined">
-          <Button onClick={() => dispatch('collapse-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Collapse All</Button>
-          <Button onClick={() => dispatch('summary')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Summary</Button>
-          <Button onClick={() => dispatch('expand-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Expand All</Button>
-          <Button onClick={() => dispatch('focus-budget')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Budget</Button>
-          <Button onClick={() => dispatch('focus-actuals')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Actuals</Button>
-        </ButtonGroup>
-      </Box>
-
-      <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2, maxHeight: 'calc(100vh - 300px)', overflow: 'auto', width: '100%' }}>
+      <TableContainer component={Paper} elevation={2} sx={{ borderRadius: 2, maxHeight: 'calc(100vh - 220px)', overflow: 'auto', width: '100%' }}>
+        {fundingSources.length > 0 && filterMode === 'none' && (
+          <Box sx={{ p: 1.5, pb: 0 }}>
+            <FundingSourceSummary categories={categories} fundingSources={fundingSources} />
+          </Box>
+        )}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 1, px: 1.5, py: 1, flexWrap: 'wrap' }}>
+          <ButtonGroup size="small" variant="outlined">
+            <Button onClick={() => dispatch('collapse-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Collapse All</Button>
+            <Button onClick={() => dispatch('summary')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Summary</Button>
+            <Button onClick={() => dispatch('expand-all')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Expand All</Button>
+            <Button onClick={() => dispatch('focus-budget')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Budget</Button>
+            <Button onClick={() => dispatch('focus-actuals')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Actuals</Button>
+            <Button
+              onClick={() => applyFilter('gap')}
+              startIcon={<PriceCheckIcon sx={{ fontSize: '14px !important' }} />}
+              sx={{ textTransform: 'none', fontSize: '0.72rem', ml: 1, borderLeftColor: 'divider' }}
+            >
+              Gap
+            </Button>
+            <Button onClick={() => applyFilter('bid')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Bid</Button>
+            <Button onClick={() => applyFilter('not_bid')} sx={{ textTransform: 'none', fontSize: '0.72rem' }}>Not bid</Button>
+          </ButtonGroup>
+        </Box>
         <Table stickyHeader size="small" sx={{ tableLayout: 'auto', width: '100%' }}>
           <TableHead>
             <TableRow sx={{ bgcolor: '#1e3a5f', '& th': { color: 'white', fontWeight: 700 } }}>
+              <TableCell align="center" sx={{ fontWeight: 700, width: 64, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
+                Bid
+              </TableCell>
               <TableCell sx={{ fontWeight: 700, minWidth: 220, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff' }}>
                 Category / Item
               </TableCell>
@@ -843,7 +1056,7 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
               {fundingSources.map((fs) => (
                 <TableCell key={fs.id} align="right" sx={{ fontWeight: 700, width: 80, py: 1, px: 1, bgcolor: '#1e3a5f', color: '#fff', borderLeft: `3px solid ${fs.color}` }}>
                   <Tooltip title={fs.name}>
-                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fsLabel(fs.name)}</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', fontWeight: 700 }}>{fundingSourceLabel(fs.name, fs.shortName)}</Typography>
                   </Tooltip>
                 </TableCell>
               ))}
@@ -865,7 +1078,14 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
             </TableRow>
           </TableHead>
           <TableBody>
-            {categories.map((cat) => (
+            {filterMode !== 'none' && displayCategories.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={fundingSources.length + 7} sx={{ ...baseCellSx, py: 2, textAlign: 'center', color: 'text.secondary' }}>
+                  No line items match this filter.
+                </TableCell>
+              </TableRow>
+            )}
+            {displayCategories.map((cat) => (
               <CategoryRow
                 key={cat.id}
                 category={cat}
@@ -875,9 +1095,11 @@ export function LineItemsTable({ categories, fundingSources: rawFundingSources, 
                 onUpdateAllocation={updateAllocation}
                 onAddEntry={addEntry}
                 onDeleteEntry={deleteEntry}
+                onSetEntryBid={setEntryBid}
+                onSetActualBid={setActualBid}
               />
             ))}
-            <TotalsRow categories={categories} fundingSources={fundingSources} />
+            {displayCategories.length > 0 && <TotalsRow categories={displayCategories} fundingSources={fundingSources} />}
           </TableBody>
         </Table>
       </TableContainer>

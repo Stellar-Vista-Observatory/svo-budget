@@ -16,15 +16,15 @@ export async function POST(
       name: string
       qboClassId: string
       qboClassName: string
-      allocatedTotal: number
+      totalFunds: number
       color?: string
     }
 
     if (!body.name || typeof body.name !== 'string') {
       return NextResponse.json({ error: 'name is required' }, { status: 400 })
     }
-    if (typeof body.allocatedTotal !== 'number' || !isFinite(body.allocatedTotal) || body.allocatedTotal < 0) {
-      return NextResponse.json({ error: 'allocatedTotal must be a non-negative number' }, { status: 400 })
+    if (typeof body.totalFunds !== 'number' || !isFinite(body.totalFunds) || body.totalFunds < 0) {
+      return NextResponse.json({ error: 'totalFunds must be a non-negative number' }, { status: 400 })
     }
 
     const existing = await prisma.fundingSource.count()
@@ -34,7 +34,7 @@ export async function POST(
       data: {
         name: body.name,
         color,
-        allocatedTotal: body.allocatedTotal,
+        totalFunds: body.totalFunds,
         qboClassId: body.qboClassId,
         qboClassName: body.qboClassName,
       },

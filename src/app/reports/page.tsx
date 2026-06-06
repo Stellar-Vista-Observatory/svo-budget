@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
 import AssessmentIcon from '@mui/icons-material/Assessment'
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance'
+import PriceCheckIcon from '@mui/icons-material/PriceCheck'
 
 export default function ReportsPage() {
   return (
@@ -34,6 +35,20 @@ export default function ReportsPage() {
                 <Typography sx={{ fontWeight: 600 }}>Funding Source</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Allocation and spending detail for a specific funding source.
+                </Typography>
+              </div>
+            </CardContent>
+          </CardActionArea>
+        </Card>
+
+        <Card elevation={2}>
+          <CardActionArea component={Link} href="/reports/funding-gap">
+            <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <PriceCheckIcon color="primary" />
+              <div>
+                <Typography sx={{ fontWeight: 600 }}>Funding Gap</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Line items whose estimated cost exceeds their allocated funding.
                 </Typography>
               </div>
             </CardContent>

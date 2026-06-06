@@ -11,6 +11,11 @@ enum ProjectType {
   catch_all
 }
 
+enum BidStatus {
+  bid
+  not_bid
+}
+
 model Project {
   id               String        @id @default(uuid())
   name             String
@@ -28,8 +33,9 @@ model Project {
 model FundingSource {
   id             String       @id @default(uuid())
   name           String
+  shortName      String?
   color          String
-  allocatedTotal Decimal      @db.Decimal(12, 2)
+  totalFunds     Decimal      @db.Decimal(12, 2)
   qboClassId     String       @unique
   qboClassName   String
   createdAt      DateTime     @default(now())
@@ -62,6 +68,7 @@ model BudgetEntry {
   categoryId      String
   name            String
   estimatedAmount Decimal      @db.Decimal(12, 2) @default(0)
+  bidStatus       BidStatus?
   sortOrder       Int          @default(0)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -92,6 +99,7 @@ model Actual {
   categoryId         String
   fundingSourceId    String?
   amount             Decimal       @db.Decimal(12, 2)
+  bidStatus          BidStatus?
   date               DateTime      @db.Date
   vendor             String?
   memo               String?
@@ -137,11 +145,15 @@ model UserRole {
 }
 
 model UserPreference {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  showActualsAsNegative Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                      String   @id @default(uuid())
+  userId                  String   @unique
+  showActualsAsNegative   Boolean  @default(true)
+  reportBvaProjectId      String?
+  reportBvaShowDetail     Boolean  @default(false)
+  reportFsProjectId       String?
+  reportFsFundingSourceId String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   @@map("user_preferences")
 }

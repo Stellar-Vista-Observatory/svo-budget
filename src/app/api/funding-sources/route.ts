@@ -7,8 +7,10 @@ export async function GET() {
   if ('error' in auth) return auth.error
 
   const sources = await prisma.fundingSource.findMany({
-    select: { id: true, name: true, color: true, allocatedTotal: true },
+    select: { id: true, name: true, shortName: true, color: true, totalFunds: true },
     orderBy: { name: 'asc' },
   })
-  return NextResponse.json(sources)
+  // totalFunds is a Prisma Decimal; coerce to a number so it sums correctly
+  // on the client instead of serializing to a string and concatenating.
+  return NextResponse.json(sources.map((s) => ({ ...s, totalFunds: Number(s.totalFunds) })))
 }

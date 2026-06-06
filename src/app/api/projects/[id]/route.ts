@@ -20,7 +20,7 @@ export async function GET(
             include: {
               allocations: {
                 include: {
-                  fundingSource: { select: { id: true, name: true, color: true, allocatedTotal: true, qboClassId: true, qboClassName: true } },
+                  fundingSource: { select: { id: true, name: true, shortName: true, color: true, totalFunds: true, qboClassId: true, qboClassName: true } },
                 },
               },
             },
@@ -48,7 +48,8 @@ export async function GET(
 
   // Deduplicate funding sources across all allocations
   const fsMap = new Map<string, {
-    id: string; name: string; color: string
+    id: string; name: string; shortName: string | null; color: string
+    totalFunds: number
     allocatedToProject: number
     qboClassId: string; qboClassName: string
   }>()
@@ -61,7 +62,9 @@ export async function GET(
       fsMap.set(fs.id, {
         id: fs.id,
         name: fs.name,
+        shortName: fs.shortName,
         color: fs.color,
+        totalFunds: fs.totalFunds.toNumber(),
         allocatedToProject: alloc.allocatedAmount.toNumber(),
         qboClassId: fs.qboClassId,
         qboClassName: fs.qboClassName,
@@ -74,7 +77,9 @@ export async function GET(
     return {
       id: fs.id,
       name: fs.name,
+      shortName: fs.shortName,
       color: fs.color,
+      totalFunds: fs.totalFunds,
       allocatedTotal: fs.allocatedToProject,
       qboClassId: fs.qboClassId,
       qboClassName: fs.qboClassName,
@@ -102,6 +107,7 @@ export async function GET(
         id: entry.id,
         name: entry.name,
         estimatedAmount: entry.estimatedAmount.toNumber(),
+        bidStatus: entry.bidStatus,
         allocations: entry.allocations.map((a) => ({
           id: a.id,
           fundingSourceId: a.fundingSource.id,
@@ -117,6 +123,7 @@ export async function GET(
         vendor: a.vendor,
         memo: a.memo,
         qboTransactionType: a.qboTransactionType,
+        bidStatus: a.bidStatus,
         fundingSourceId: a.fundingSourceId,
         fundingSourceName: a.fundingSource?.name ?? null,
         fundingSourceColor: a.fundingSource?.color ?? null,

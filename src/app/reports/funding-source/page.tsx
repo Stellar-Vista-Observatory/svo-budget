@@ -74,20 +74,58 @@ export default function FundingSourceReport() {
   const [selectedFsId, setSelectedFsId] = useState('')
   const [report, setReport] = useState<FundingSourceReportData | null>(null)
   const [loading, setLoading] = useState(false)
-  const { showActualsAsNegative } = useUserPreferences()
+  const [listsLoaded, setListsLoaded] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
+  const {
+    showActualsAsNegative,
+    reportFsProjectId,
+    reportFsFundingSourceId,
+    loaded,
+    updatePreferences,
+  } = useUserPreferences()
 
   useEffect(() => {
     Promise.all([
       fetch('/api/projects').then((r) => r.json()),
       fetch('/api/funding-sources').then((r) => r.json()),
     ]).then(([projData, fsData]) => {
-      const projList = projData.projects ?? []
-      setProjects(projList)
+      setProjects(projData.projects ?? [])
       setFundingSources(fsData ?? [])
-      if (projList.length > 0) setSelectedProjectId(projList[0].id)
-      if (fsData?.length > 0) setSelectedFsId(fsData[0].id)
+      setListsLoaded(true)
     })
   }, [])
+
+  // Apply saved selections once prefs and lists are both available. Wait for
+  // `loaded` so saved selections aren't clobbered by the default-first-item logic.
+  useEffect(() => {
+    if (!loaded || !listsLoaded || hydrated) return
+    if (projects.length > 0) {
+      const savedProj =
+        reportFsProjectId && projects.some((p) => p.id === reportFsProjectId)
+          ? reportFsProjectId
+          : projects[0].id
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedProjectId(savedProj)
+    }
+    if (fundingSources.length > 0) {
+      const savedFs =
+        reportFsFundingSourceId && fundingSources.some((f) => f.id === reportFsFundingSourceId)
+          ? reportFsFundingSourceId
+          : fundingSources[0].id
+      setSelectedFsId(savedFs)
+    }
+    setHydrated(true)
+  }, [loaded, listsLoaded, hydrated, projects, fundingSources, reportFsProjectId, reportFsFundingSourceId])
+
+  function handleSelectProject(id: string) {
+    setSelectedProjectId(id)
+    updatePreferences({ reportFsProjectId: id })
+  }
+
+  function handleSelectFs(id: string) {
+    setSelectedFsId(id)
+    updatePreferences({ reportFsFundingSourceId: id })
+  }
 
   useEffect(() => {
     if (!selectedProjectId || !selectedFsId) return
@@ -158,7 +196,7 @@ export default function FundingSourceReport() {
           <Typography variant="h4" sx={{ fontWeight: 700 }}>Funding Source Report</Typography>
           <Select
             value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
+            onChange={(e) => handleSelectProject(e.target.value)}
             size="small"
             sx={{ minWidth: 200 }}
           >
@@ -168,7 +206,7 @@ export default function FundingSourceReport() {
           </Select>
           <Select
             value={selectedFsId}
-            onChange={(e) => setSelectedFsId(e.target.value)}
+            onChange={(e) => handleSelectFs(e.target.value)}
             size="small"
             sx={{ minWidth: 200 }}
           >

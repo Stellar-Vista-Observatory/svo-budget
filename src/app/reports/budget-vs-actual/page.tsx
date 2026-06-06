@@ -81,15 +81,44 @@ export default function BudgetVsActualReport() {
   const [report, setReport] = useState<ProjectReport | null>(null)
   const [loading, setLoading] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
-  const { showActualsAsNegative } = useUserPreferences()
+  const [hydrated, setHydrated] = useState(false)
+  const {
+    showActualsAsNegative,
+    reportBvaProjectId,
+    reportBvaShowDetail,
+    loaded,
+    updatePreferences,
+  } = useUserPreferences()
 
   useEffect(() => {
     fetch('/api/projects').then((r) => r.json()).then((d) => {
-      const list = d.projects ?? []
-      setProjects(list)
-      if (list.length > 0) setSelectedId(list[0].id)
+      setProjects(d.projects ?? [])
     })
   }, [])
+
+  // Apply saved selections once prefs and projects are both available. Wait for
+  // `loaded` so the saved project isn't clobbered by the default-first-item logic.
+  useEffect(() => {
+    if (!loaded || hydrated || projects.length === 0) return
+    const saved =
+      reportBvaProjectId && projects.some((p) => p.id === reportBvaProjectId)
+        ? reportBvaProjectId
+        : projects[0].id
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedId(saved)
+    setShowDetail(reportBvaShowDetail)
+    setHydrated(true)
+  }, [loaded, hydrated, projects, reportBvaProjectId, reportBvaShowDetail])
+
+  function handleSelectProject(id: string) {
+    setSelectedId(id)
+    updatePreferences({ reportBvaProjectId: id })
+  }
+
+  function handleShowDetail(value: boolean) {
+    setShowDetail(value)
+    updatePreferences({ reportBvaShowDetail: value })
+  }
 
   useEffect(() => {
     if (!selectedId) return
@@ -127,7 +156,7 @@ export default function BudgetVsActualReport() {
           <Typography variant="h4" sx={{ fontWeight: 700 }}>Budget vs. Actual</Typography>
           <Select
             value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
+            onChange={(e) => handleSelectProject(e.target.value)}
             size="small"
             sx={{ minWidth: 220 }}
           >
@@ -136,7 +165,7 @@ export default function BudgetVsActualReport() {
             ))}
           </Select>
           <FormControlLabel
-            control={<Switch checked={showDetail} onChange={(e) => setShowDetail(e.target.checked)} />}
+            control={<Switch checked={showDetail} onChange={(e) => handleShowDetail(e.target.checked)} />}
             label="Show detail"
           />
           <Button

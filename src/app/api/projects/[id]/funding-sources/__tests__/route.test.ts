@@ -34,36 +34,36 @@ describe('POST /api/projects/[id]/funding-sources', () => {
   it('returns 401/403 when write access denied', async () => {
     const { NextResponse } = await import('next/server')
     mockRequireWriteAccess.mockResolvedValue({ error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) })
-    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', allocatedTotal: 1000 }), { params })
+    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', totalFunds: 1000 }), { params })
     expect(res.status).toBe(403)
   })
 
   it('creates funding source with 201', async () => {
-    const created = { id: 'fs-new', name: 'Grant A', color: '#3b82f6', allocatedTotal: 1000 }
+    const created = { id: 'fs-new', name: 'Grant A', color: '#3b82f6', totalFunds: 1000 }
     mockCreate.mockResolvedValue(created)
-    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', allocatedTotal: 1000 }), { params })
+    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', totalFunds: 1000 }), { params })
     expect(res.status).toBe(201)
     expect(await res.json()).toEqual(created)
   })
 
   it('returns 400 when name is missing', async () => {
-    const res = await POST(makeRequest({ qboClassId: 'c1', qboClassName: 'Grant A', allocatedTotal: 1000 }), { params })
+    const res = await POST(makeRequest({ qboClassId: 'c1', qboClassName: 'Grant A', totalFunds: 1000 }), { params })
     expect(res.status).toBe(400)
     expect((await res.json()).error).toMatch(/name/)
   })
 
-  it('returns 400 when allocatedTotal is negative', async () => {
-    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', allocatedTotal: -1 }), { params })
+  it('returns 400 when totalFunds is negative', async () => {
+    const res = await POST(makeRequest({ name: 'Grant A', qboClassId: 'c1', qboClassName: 'Grant A', totalFunds: -1 }), { params })
     expect(res.status).toBe(400)
-    expect((await res.json()).error).toMatch(/allocatedTotal/)
+    expect((await res.json()).error).toMatch(/totalFunds/)
   })
 
   it('assigns cyan (#06b6d4) as the color for the second funding source', async () => {
     mockCount.mockResolvedValue(1) // 1 existing → index 1 in palette
-    const created = { id: 'fs-2', name: 'Grant B', color: '#06b6d4', allocatedTotal: 500 }
+    const created = { id: 'fs-2', name: 'Grant B', color: '#06b6d4', totalFunds: 500 }
     mockCreate.mockResolvedValue(created)
     const res = await POST(
-      makeRequest({ name: 'Grant B', qboClassId: 'c2', qboClassName: 'Grant B', allocatedTotal: 500 }),
+      makeRequest({ name: 'Grant B', qboClassId: 'c2', qboClassName: 'Grant B', totalFunds: 500 }),
       { params }
     )
     expect(res.status).toBe(201)
