@@ -1,5 +1,6 @@
 import { exchangeCodeForTokens } from '@/lib/qbo/auth'
 import { prisma } from '@/lib/prisma'
+import { encrypt } from '@/lib/crypto'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -32,21 +33,14 @@ export async function GET(request: NextRequest) {
     const companyData = await companyRes.json()
     const companyName: string = companyData?.CompanyInfo?.CompanyName ?? 'QuickBooks Company'
 
+    const accessToken = encrypt(tokens.access_token)
+    const refreshToken = encrypt(tokens.refresh_token)
+    const tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+
     await prisma.qboConnection.upsert({
       where: { realmId },
-      update: {
-        companyName,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-      },
-      create: {
-        realmId,
-        companyName,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
-      },
+      update: { companyName, accessToken, refreshToken, tokenExpiresAt },
+      create: { realmId, companyName, accessToken, refreshToken, tokenExpiresAt },
     })
 
     const response = NextResponse.redirect(`${origin}/settings?connected=true`)

@@ -1,4 +1,21 @@
-import { qboQuery } from '@/lib/qbo/client'
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    qboConnection: { findFirst: jest.fn(), update: jest.fn() },
+  },
+}))
+
+jest.mock('@/lib/qbo/auth', () => ({
+  refreshAccessToken: jest.fn(),
+}))
+
+import { qboQuery, getValidConnection } from '@/lib/qbo/client'
+import { prisma } from '@/lib/prisma'
+import { refreshAccessToken } from '@/lib/qbo/auth'
+import { encrypt, decrypt, isEncrypted } from '@/lib/crypto'
+
+const mockFindFirst = prisma.qboConnection.findFirst as jest.Mock
+const mockUpdate = prisma.qboConnection.update as jest.Mock
+const mockRefresh = refreshAccessToken as jest.Mock
 
 beforeEach(() => {
   global.fetch = jest.fn()
@@ -67,5 +84,86 @@ describe('qboQuery', () => {
     const result = await qboQuery('realm123', 'token', 'SELECT * FROM Account')
     expect(result).toHaveLength(1002)
     expect(global.fetch).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('getValidConnection', () => {
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    process.env = { ...originalEnv, TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64') }
+    jest.clearAllMocks()
+  })
+
+  afterEach(() => {
+    process.env = originalEnv
+  })
+
+  function storedConn(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'conn-1',
+      realmId: 'realm123',
+      companyName: 'Test Co',
+      accessToken: encrypt('access-plain'),
+      refreshToken: encrypt('refresh-plain'),
+      tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      lastSyncedAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides,
+    }
+  }
+
+  it('returns decrypted tokens when the access token is still valid', async () => {
+    mockFindFirst.mockResolvedValue(storedConn())
+
+    const conn = await getValidConnection()
+
+    expect(conn.accessToken).toBe('access-plain')
+    expect(conn.refreshToken).toBe('refresh-plain')
+    expect(mockRefresh).not.toHaveBeenCalled()
+    expect(mockUpdate).not.toHaveBeenCalled()
+  })
+
+  it('refreshes with the decrypted refresh token and stores re-encrypted tokens', async () => {
+    mockFindFirst.mockResolvedValue(storedConn({ tokenExpiresAt: new Date(Date.now() + 60 * 1000) }))
+    mockRefresh.mockResolvedValue({
+      access_token: 'new-access',
+      refresh_token: 'new-refresh',
+      expires_in: 3600,
+    })
+    mockUpdate.mockImplementation(({ data }) => ({ ...storedConn(), ...data }))
+
+    const conn = await getValidConnection()
+
+    // refresh is called with the *decrypted* refresh token
+    expect(mockRefresh).toHaveBeenCalledWith('refresh-plain')
+
+    // tokens are persisted encrypted, not in plaintext
+    const stored = mockUpdate.mock.calls[0][0].data
+    expect(isEncrypted(stored.accessToken)).toBe(true)
+    expect(isEncrypted(stored.refreshToken)).toBe(true)
+    expect(decrypt(stored.accessToken)).toBe('new-access')
+    expect(decrypt(stored.refreshToken)).toBe('new-refresh')
+
+    // caller receives decrypted tokens
+    expect(conn.accessToken).toBe('new-access')
+    expect(conn.refreshToken).toBe('new-refresh')
+  })
+
+  it('passes through legacy plaintext tokens during migration', async () => {
+    mockFindFirst.mockResolvedValue(
+      storedConn({ accessToken: 'legacy-access', refreshToken: 'legacy-refresh' })
+    )
+
+    const conn = await getValidConnection()
+
+    expect(conn.accessToken).toBe('legacy-access')
+    expect(conn.refreshToken).toBe('legacy-refresh')
+  })
+
+  it('throws when there is no connection', async () => {
+    mockFindFirst.mockResolvedValue(null)
+    await expect(getValidConnection()).rejects.toThrow('No QBO connection found')
   })
 })
