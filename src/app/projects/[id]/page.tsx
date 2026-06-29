@@ -3,6 +3,7 @@
 import { AppShell } from '@/components/layout/AppShell'
 import { LineItemsTable } from '@/components/project/LineItemsTable'
 import { applyActualSign } from '@/lib/formatting'
+import { totalFundsAvailable } from '@/lib/computed'
 import { useUserPreferences } from '@/lib/UserPreferencesProvider'
 import Link from 'next/link'
 import { useCallback, useEffect, useState, use } from 'react'
@@ -149,6 +150,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const spentPct = pct(project.totalSpent, project.totalEstimated)
   const fundingGap = project.fundingGap
   const remaining = project.totalEstimated - project.totalSpent
+  const totalFunds = totalFundsAvailable(allFundingSources)
 
   return (
     <AppShell>
@@ -190,6 +192,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         </Box>
 
         <Stack direction="row" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+          <StatBox label="Total Funds Available" value={fmt(totalFunds)} />
           <StatBox label="Total Budget" value={fmt(project.totalEstimated)} />
           <StatBox label="Allocated" value={fmt(project.totalSecured)} highlight={fundingGap <= 0 ? 'good' : undefined} />
           {fundingGap > 0 && <StatBox label="Funding Gap" value={fmt(fundingGap)} highlight="warn" />}

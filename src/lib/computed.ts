@@ -28,3 +28,7 @@ export function projectSpent(actuals: { amount: Prisma.Decimal }[]): number {
 export function projectFundingGap(estimatedCosts: number, securedFunding: number): number {
   return estimatedCosts - securedFunding
 }
+
+export function totalFundsAvailable(fundingSources: { totalFunds: number }[]): number {
+  return fundingSources.reduce((sum, fs) => sum + fs.totalFunds, 0)
+}

@@ -6,6 +6,7 @@ import { applyActualSign } from '@/lib/formatting'
 import { type BidStatusValue, nextBidStatus, bidStatusLabel } from '@/lib/bid-status'
 import { fundingSourceLabel } from '@/lib/funding-source-label'
 import { computeFundingSourceTotals } from '@/lib/funding-source-summary'
+import { totalFundsAvailable } from '@/lib/computed'
 import { applyLineItemFilter, type LineItemFilterMode } from '@/lib/line-item-filters'
 import { roundDollars } from '@/lib/money'
 import { useUserPreferences } from '@/lib/UserPreferencesProvider'
@@ -794,7 +795,7 @@ function FundingSourceSummary({ categories, fundingSources }: { categories: Cate
   const { showActualsAsNegative } = useUserPreferences()
   const { rows, totals } = computeFundingSourceTotals(categories, fundingSources.map((fs) => fs.id))
   const byId = new Map(rows.map((r) => [r.id, r]))
-  const totalFundsAll = fundingSources.reduce((s, fs) => s + fs.totalFunds, 0)
+  const totalFundsAll = totalFundsAvailable(fundingSources)
 
   const headSx = { fontSize: '0.66rem', fontWeight: 700, color: 'text.secondary', py: 0.5, px: 1.25, textTransform: 'uppercase' as const, letterSpacing: '0.04em', whiteSpace: 'nowrap' as const }
   const cellSx = { fontSize: '0.78rem', py: 0.4, px: 1.25, whiteSpace: 'nowrap' as const }

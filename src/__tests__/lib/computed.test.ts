@@ -4,6 +4,7 @@ import {
   projectSpent,
   projectFundingGap,
   fundingSourceSpent,
+  totalFundsAvailable,
 } from '@/lib/computed'
 
 const dec = (n: number) => ({ toNumber: () => n } as unknown as import('@prisma/client').Prisma.Decimal)
@@ -55,5 +56,20 @@ describe('projectFundingGap', () => {
 
   it('returns negative (surplus) when over-funded', () => {
     expect(projectFundingGap(600, 1000)).toBe(-400)
+  })
+})
+
+describe('totalFundsAvailable', () => {
+  it('sums totalFunds across all funding sources', () => {
+    const sources = [
+      { totalFunds: 25000 },
+      { totalFunds: 83000 },
+      { totalFunds: 199500 },
+    ]
+    expect(totalFundsAvailable(sources)).toBe(307500)
+  })
+
+  it('returns 0 with no funding sources', () => {
+    expect(totalFundsAvailable([])).toBe(0)
   })
 })
